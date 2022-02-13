@@ -1,0 +1,13 @@
+(ocamllex
+ (modules lexer))
+
+(menhir
+ (modules parser)
+ (flags -la 2)
+)
+
+(executable
+ (name repl)
+ (public_name repl)
+ (libraries
+  core))

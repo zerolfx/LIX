@@ -1,0 +1,24 @@
+
+
+let process (line: string) =
+  let linebuf = Lexing.from_string line in
+  try
+    let code = Parser.code_eof Lexer.token linebuf in
+    Syntax.print_code code;
+  with
+  | Parser.Error ->
+      Printf.fprintf stderr "At offset %d: syntax error.\n%!" (Lexing.lexeme_start linebuf)
+  | e -> Core.printf "error: %s\n" (Printexc.to_string e)
+
+
+let rec repl () =
+  print_string "> "; flush stdout;
+  let option_line = Lexer.line (Lexing.from_channel stdin) in
+  match option_line with
+  | None -> 
+    print_string "Bye.\n"
+  | Some line ->
+    process line;
+    repl ()
+
+let () = repl ()
