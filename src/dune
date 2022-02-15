@@ -10,4 +10,9 @@
  (name repl)
  (public_name repl)
  (libraries
-  core))
+  core
+  str
+  llvm
+  llvm.analysis
+  llvm.executionengine)
+ (preprocess (pps ppx_deriving.show)))

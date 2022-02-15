@@ -5,10 +5,14 @@ let process (line: string) =
   try
     let code = Parser.code_eof Lexer.token linebuf in
     Syntax.print_code code;
+    let ast = Ast.gen_ast code in
+    Ast.show_ast ast |> print_endline;
+    let hast = Hast.ast_to_hast ast in
+    Hast.show_hast hast  |> print_endline;
   with
   | Parser.Error ->
       Printf.fprintf stderr "At offset %d: syntax error.\n%!" (Lexing.lexeme_start linebuf)
-  | e -> Core.printf "error: %s\n" (Printexc.to_string e)
+  | e -> Printexc.to_string e |> print_endline; Printexc.print_backtrace stdout; flush stdout
 
 
 let rec repl () =
@@ -21,4 +25,5 @@ let rec repl () =
     process line;
     repl ()
 
-let () = repl ()
+let () = 
+  repl ()
