@@ -5,7 +5,7 @@ let process (line: string) =
   try
     let code = Parser.code_eof Lexer.token linebuf in
     Syntax.print_code code;
-    let ast = Ast.gen_ast code in
+    let ast = Ast.code_to_ast code in
     Ast.show_ast ast |> print_endline;
     let hast = Hast.ast_to_hast ast in
     Hast.show_hast hast  |> print_endline;

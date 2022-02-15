@@ -4,7 +4,7 @@ type hast =
 | Primitive of Ast.primitive
 | Var of typed_var
 | Lambda of typed_var * hast
-| Application of Type.t * hast * hast list
+| Application of Type.t * hast * hast
 [@@deriving show]
 
 exception Err
@@ -15,14 +15,15 @@ let rec gen_hast = function
   | Ast.Primitive p -> Primitive p
   | Ast.TypeAnnotation _ -> raise Err
   | Ast.Variable s -> Var (s, t)
-  | Ast.Application (v, l) -> Application (t, gen_hast v, List.map gen_hast l)
+  | Ast.Application (v, [arg]) -> Application (t, gen_hast v, gen_hast arg)
   | Ast.Lambda (v, e) -> (match t with
     | Type.FunctionT (tv, te) -> Lambda ((v, tv), gen_hast (Ast.TypeAnnotation (te, e)))
     | _ -> raise Err
     )
+  | _ -> raise Err
   )
 | Ast.Variable s -> Var (s, Type.DummyT)
-| Ast.Application (v, l) -> Application (Type.DummyT, gen_hast v, List.map gen_hast l)
+| Ast.Application (v, [arg]) -> Application (Type.DummyT, gen_hast v, gen_hast arg)
 | Ast.Primitive p -> Primitive p
 | _ -> raise Err
 
@@ -63,23 +64,22 @@ let rec get_type = function
 | Lambda ((_, t), e) -> Type.FunctionT (t, get_type e)
 | Application (t, _, _) -> t
 
-let rec resolve_app (ft : Type.t) (ts : Type.t list) : Type.t = match ft, ts with
-| _, [] -> ft
-| Type.FunctionT (tv, te), ta :: res ->
-  if tv == ta then resolve_app te res else raise Err
-| _, _ -> raise Err
+let resolve_app (f_type : Type.t) (arg_type : Type.t) : Type.t = match f_type with
+| Type.FunctionT (arg_t, expr_t) ->
+  if arg_t == arg_type then expr_t else raise Err
+| _ -> raise Err
 
 let rec type_hast (table: typed_var list) (h: hast) : hast = match h with
 | Primitive _ -> h
 | Var (name, Type.DummyT) -> Var (lookup name table)
 | Lambda (v, e) -> Lambda (v, type_hast (v :: table) e)
-| Application (t, v, es) -> (
-  let tv = type_hast table v in
-  let tes = List.map (type_hast table) es in
-  let ts = List.map get_type tes in
-  let ta = resolve_app (get_type tv) ts in
-  if t != Type.DummyT then assert (t == ta);
-  Application (ta, tv, tes)
+| Application (t, f, arg) -> (
+  let typed_f = type_hast table f in
+  let typed_arg = type_hast table arg in
+  let arg_type = get_type typed_arg in
+  let app_type = resolve_app (get_type typed_f) arg_type in
+  if t != Type.DummyT then assert (t == app_type);
+  Application (app_type, typed_f, typed_arg)
 )
 | _ -> raise (Error (Core.sprintf "cannot match %s" (show_hast h)))
 
@@ -88,7 +88,7 @@ let rec check_all_typed = function
 | Var (_, Type.DummyT) -> false
 | Lambda (v, e) -> check_all_typed (Var v) && check_all_typed e
 | Application (Type.DummyT, _, _) -> false
-| Application (_, f, vs) -> check_all_typed f && List.for_all check_all_typed vs
+| Application (_, f, arg) -> check_all_typed f && check_all_typed arg
 | _ -> true
 
 
