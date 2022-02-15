@@ -7,25 +7,21 @@ type hast =
 | Application of Type.t * hast * hast
 [@@deriving show]
 
-exception Err
-exception Error of string
-
-let rec gen_hast = function
-| Ast.TypeAnnotation (t, a) -> (match a with
-  | Ast.Primitive p -> Primitive p
-  | Ast.TypeAnnotation _ -> raise Err
-  | Ast.Variable s -> Var (s, t)
-  | Ast.Application (v, [arg]) -> Application (t, gen_hast v, gen_hast arg)
-  | Ast.Lambda (v, e) -> (match t with
-    | Type.FunctionT (tv, te) -> Lambda ((v, tv), gen_hast (Ast.TypeAnnotation (te, e)))
-    | _ -> raise Err
+let rec gen_hast (dast: Dast.dast) = match dast with
+| Dast.TypeAnnotation (t, a) -> (match a with
+  | Dast.Primitive p -> Primitive p
+  | Dast.TypeAnnotation _ -> raise (Failure "type_annotation for type_annotation is not allowed")
+  | Dast.Variable s -> Var (s, t)
+  | Dast.Application (v, arg) -> Application (t, gen_hast v, gen_hast arg)
+  | Dast.Lambda (v, e) -> (match t with
+    | Type.FunctionT (tv, te) -> Lambda ((v, tv), gen_hast (Dast.TypeAnnotation (te, e)))
+    | _ -> raise (Failure "lambda type mismatch")
     )
-  | _ -> raise Err
   )
-| Ast.Variable s -> Var (s, Type.DummyT)
-| Ast.Application (v, [arg]) -> Application (Type.DummyT, gen_hast v, gen_hast arg)
-| Ast.Primitive p -> Primitive p
-| _ -> raise Err
+| Dast.Variable s -> Var (s, Type.DummyT)
+| Dast.Application (v, arg) -> Application (Type.DummyT, gen_hast v, gen_hast arg)
+| Dast.Primitive p -> Primitive p
+| _ -> raise (Failure (Core.sprintf "unexpected ast node: %s" (Dast.show_dast dast)))
 
 module M = Map.Make (String)
 let globals = [
@@ -54,7 +50,7 @@ let lookup (name : string) (table : typed_var list) : typed_var =
   | Some tv -> tv
   | None -> match M.find_opt name globals with
     | Some tv -> (name, tv)
-    | None -> raise Err
+    | None -> raise (Failure (Core.sprintf "unknown variable: %s" name))
 
 
 let rec get_type = function
@@ -66,8 +62,9 @@ let rec get_type = function
 
 let resolve_app (f_type : Type.t) (arg_type : Type.t) : Type.t = match f_type with
 | Type.FunctionT (arg_t, expr_t) ->
-  if arg_t == arg_type then expr_t else raise Err
-| _ -> raise Err
+  if arg_t == arg_type then expr_t else raise (Failure (
+    Core.sprintf "function arg type mismatch: %s %s" (Type.show f_type) (Type.show arg_type)))
+| _ -> raise (Failure (Core.sprintf "function type expected: %s" (Type.show f_type)))
 
 let rec type_hast (table: typed_var list) (h: hast) : hast = match h with
 | Primitive _ -> h
@@ -81,7 +78,7 @@ let rec type_hast (table: typed_var list) (h: hast) : hast = match h with
   if t != Type.DummyT then assert (t == app_type);
   Application (app_type, typed_f, typed_arg)
 )
-| _ -> raise (Error (Core.sprintf "cannot match %s" (show_hast h)))
+| _ -> raise (Failure (Core.sprintf "cannot type %s" (show_hast h)))
 
 
 let rec check_all_typed = function
@@ -93,6 +90,6 @@ let rec check_all_typed = function
 
 
 let ast_to_hast (a : Ast.ast) : hast =
-  let h = a |> gen_hast |> type_hast [] in
+  let h = a |> Dast.ast_to_dast |> gen_hast |> type_hast [] in
   assert (check_all_typed h);
   h
