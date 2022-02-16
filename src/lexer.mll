@@ -14,5 +14,5 @@ and token = parse
 | '(' { LPAREN }
 | ')' { RPAREN }
 | '-'? ['0'-'9']+ as lxm { INT_LIT(int_of_string lxm) }
-| [^ '(' ')' '[' ']' '{' '}' '"' '0'-'9' ' ' '\n' '\r' '\t']+ as lxm { Symbol(lxm) }
+| [^ '(' ')' '[' ']' '{' '}' '"' '0'-'9' ' ' '\n' '\r' '\t'][^ '(' ')' '[' ']' '{' '}' '"' ' ' '\n' '\r' '\t']* as lxm { Symbol(lxm) }
 | eof { EOF }
