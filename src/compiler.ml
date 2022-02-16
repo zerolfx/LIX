@@ -12,6 +12,7 @@ let the_execution_engine =
   | false -> raise (Failure "failed to initialize execution engine"));
   Llvm_executionengine.create the_module
 
+let the_fpm = Llvm.PassManager.create_function the_module
 let builder = L.builder context
 
 
@@ -32,13 +33,8 @@ let closure_struct = L.struct_type context [| void_ptr_type ; void_ptr_type |]
 let closure_ptr_type = L.pointer_type closure_struct
 
 
-let malloc_f = L.declare_function "malloc" (L.function_type void_ptr_type [| int_type |]) the_module
-
-let build_malloc (size : L.llvalue) : L.llvalue = 
-  L.build_call malloc_f [| size |] "malloc" builder
-
 let build_malloc_ptr (t : L.lltype) : L.llvalue = 
-  L.build_bitcast (build_malloc (L.size_of t)) (L.pointer_type t) "malloc_ptr" builder
+  L.build_malloc t "malloc" builder
 
 
 let build_struct_field_ptr (ptr : L.llvalue) (field : int) : L.llvalue = 
@@ -60,8 +56,6 @@ let gen_env_type (vars : typed_var list) : L.lltype =
   L.struct_type context (List.map (Core.Fn.compose gen_type type_of_var) vars |> Array.of_list)
   
 
-(* let gen_param (v) *)
-
 module M = Map.Make(String)
 
 let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a with
@@ -69,12 +63,12 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
 | A.Var (name, _) -> 
   if String.starts_with ~prefix:"__llvm" name then
     codegen_builtin var_table name
+  else if String.starts_with ~prefix:"__builtin" name then 
+    L.build_load (M.find name var_table) "load_builtin" builder
   else M.find name var_table
 | A.Lambda (name, free_vars, arg, body) -> 
   let env_type = gen_env_type free_vars in
   let env_ptr = build_malloc_ptr env_type in
-  List.mapi (fun i v ->
-    L.build_store (codegen var_table (A.Var v)) (build_struct_field_ptr env_ptr i)) free_vars |> ignore;
 
   let f_llvm_type = L.function_type (Last.get_type body |> gen_type) [| type_of_var arg |> gen_type ; void_ptr_type |]  in
   let f = L.declare_function name f_llvm_type the_module in
@@ -82,12 +76,15 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   let closure_ptr = build_malloc_ptr closure_struct in
 
   
-  List.mapi (fun i (n, _) ->
-    L.build_store (M.find n var_table) (build_struct_field_ptr env_ptr i)) free_vars |> ignore;
+  List.mapi (fun i v ->
+    L.build_store 
+      (codegen var_table (A.Var v)) 
+      (build_struct_field_ptr env_ptr i) builder) free_vars |> ignore;
 
   L.build_store 
     (L.build_bitcast f void_ptr_type "f_ptr" builder) 
-    (build_malloc_ptr void_ptr_type) builder |> ignore;
+    (L.build_struct_gep closure_ptr 0 "f_ptr" builder) builder |> ignore;
+
   L.build_store
     (L.build_bitcast env_ptr void_ptr_type "env_ptr" builder)
     (L.build_struct_gep closure_ptr 1 "env_ptr" builder) builder |> ignore;
@@ -128,24 +125,39 @@ and codegen_builtin (var_table : L.llvalue M.t) (name : string) : L.llvalue = ma
 
 
 let builtin = 
-  [("__llvm__add", 
-    A.Lambda ("__builtin__add2", [], ("a", Type.IntT), 
-      A.Lambda ("__builtin__add1", [("a", Type.IntT)], ("b", Type.IntT), 
+  [("__builtin_add2", 
+    A.Lambda ("__builtin_lam_add2", [], ("a", Type.IntT), 
+      A.Lambda ("__builtin_lam_add1", [("a", Type.IntT)], ("b", Type.IntT), 
         A.Var ("__llvm__add", Type.IntT))))]
 
 
-        
-let builtin_table =   
-  let init = L.declare_function "init" (L.function_type void_type [||]) the_module in
+let gen_builtin ((name, c) : string *  A.last) : string * L.llvalue =
+  let global_closure = L.declare_global closure_ptr_type name the_module in
+  L.build_store (codegen M.empty c) global_closure builder |> ignore;
+  (name, global_closure)
+
+
+let builtin_table = 
+
+  (* Llvm_scalar_opts.add_memory_to_register_promotion the_fpm ;
+  Llvm_scalar_opts.add_instruction_combination the_fpm ;
+  Llvm_scalar_opts.add_reassociation the_fpm ;
+  Llvm_scalar_opts.add_gvn the_fpm ;
+  Llvm_scalar_opts.add_cfg_simplification the_fpm ;
+  Llvm.PassManager.initialize the_fpm |> ignore ; *)
+
+  let init = L.declare_function "init_builtins" (L.function_type void_type [||]) the_module in
   let bb = L.append_block context "entry" init in
   L.position_at_end bb builder;
-  let table = builtin |> List.map (fun (n, c) -> (n, codegen M.empty c)) |> List.to_seq |> M.of_seq in
+  
+  let table = List.map gen_builtin builtin |> List.to_seq |> M.of_seq in
+
   L.build_ret_void builder |> ignore;
 
-  (* L.dump_module the_module; *)
   verify_function init;
+  L.dump_module the_module;
 
-  let init_fp = Llvm_executionengine.get_function_address "init" 
+  let init_fp = Llvm_executionengine.get_function_address "init_builtins" 
     (Foreign.funptr Ctypes.(void @-> returning void)) 
     the_execution_engine in
   init_fp ();
@@ -154,8 +166,32 @@ let builtin_table =
 
 
 
-let codegen_with_builtins (a: A.last) : L.llvalue = 
-  let repl_function = L.declare_function "repl" (L.function_type (a |> Last.get_type |> gen_type) [||]) the_module in
+let codegen_repl (a: A.last) : L.llvalue = 
+  let ta = Last.get_type a in
+
+  let repl_function = L.declare_function "repl" (L.function_type (gen_type ta) [||]) the_module in
   let bb = L.append_block context "entry" repl_function in
   L.position_at_end bb builder;
-  L.build_ret (codegen builtin_table a) builder
+  L.build_ret (codegen builtin_table a) builder |> ignore;
+  verify_function repl_function;
+
+  L.dump_module the_module;
+
+  Printf.printf "type : %s" (Type.show ta);
+
+  (match ta with
+  | Type.IntT -> 
+    let repl_fp = Llvm_executionengine.get_function_address "repl" 
+      (Foreign.funptr Ctypes.(void @-> returning int64_t)) 
+      the_execution_engine in
+    Printf.printf ", eval : %Ld" (repl_fp ())
+  | _ -> 
+    let repl_fp = Llvm_executionengine.get_function_address "repl" 
+      (Foreign.funptr Ctypes.(void @-> returning void)) 
+      the_execution_engine in
+    repl_fp ();
+    print_newline ()
+  );
+  
+
+  repl_function

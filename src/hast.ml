@@ -25,18 +25,7 @@ let rec gen_hast (dast: Dast.dast) = match dast with
 
 module M = Map.Make (String)
 let globals = [
-  ("+", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)));
-  ("-", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)));
-  ("*", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)));
-  ("/", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)));
-  ("<", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.BoolT)));
-  ("<=", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.BoolT)));
-  (">", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.BoolT)));
-  (">=", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.BoolT)));
-  ("=", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.BoolT)));
-  ("not", Type.FunctionT (Type.BoolT, Type.BoolT));
-  ("and", Type.FunctionT (Type.BoolT, Type.FunctionT (Type.BoolT, Type.BoolT)));
-  ("or", Type.FunctionT (Type.BoolT, Type.FunctionT (Type.BoolT, Type.BoolT)))
+  ("__builtin_add2", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)))
 ] |> List.to_seq |> M.of_seq
 
 let rec lookup_local (name : string) (table : typed_var list) : typed_var option =

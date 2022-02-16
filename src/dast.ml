@@ -15,6 +15,7 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Application (f, arg0 :: args) ->
   desugar_ast (Ast.Application (Ast.Application (f, [arg0]), args))
 | Ast.Primitive p -> Primitive p
+| Ast.Variable "+" -> Variable "__builtin_add2"
 | Ast.Variable v -> Variable v
 | Ast.Lambda ([], _) -> raise (Failure "lambda must has at least one argument")
 | Ast.Lambda ([a], e) -> Lambda (a, desugar_ast e)

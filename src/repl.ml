@@ -9,8 +9,7 @@ let process (line: string) =
     Hast.show_hast hast  |> print_endline;
     let last = Last.hast_to_last hast in
     Last.show_last last  |> print_endline;
-    Compiler.codegen_with_builtins last |> ignore;
-    Llvm.dump_module Compiler.the_module
+    Compiler.codegen_repl last |> ignore;
   with
   | Parser.Error ->
       Printf.fprintf stderr "At offset %d: syntax error.\n%!" (Lexing.lexeme_start linebuf)
