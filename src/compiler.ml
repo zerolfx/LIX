@@ -38,7 +38,7 @@ let build_malloc (size : L.llvalue) : L.llvalue =
   L.build_call malloc_f [| size |] "malloc" builder
 
 let build_malloc_ptr (t : L.lltype) : L.llvalue = 
-  L.build_bitcast (L.size_of t) (L.pointer_type t) "malloc_ptr" builder
+  L.build_bitcast (build_malloc (L.size_of t)) (L.pointer_type t) "malloc_ptr" builder
 
 
 let build_struct_field_ptr (ptr : L.llvalue) (field : int) : L.llvalue = 
@@ -108,7 +108,8 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
 
   L.build_ret (codegen table body) builder |> ignore;
   L.position_at_end old_block builder;
-
+    
+  verify_function f;
   
   closure_ptr
 | A.Application (_, f, arg) -> (match Last.get_type f with
@@ -142,7 +143,7 @@ let builtin_table =
   L.build_ret_void builder |> ignore;
 
   (* L.dump_module the_module; *)
-  Llvm_analysis.assert_valid_function init;
+  verify_function init;
 
   let init_fp = Llvm_executionengine.get_function_address "init" 
     (Foreign.funptr Ctypes.(void @-> returning void)) 
