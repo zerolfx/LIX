@@ -93,6 +93,7 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
     (L.build_struct_gep closure_ptr 1 "env_ptr" builder) builder |> ignore;
   
   
+  let old_block = L.insertion_block builder in
   let block = L.append_block context "entry" f in
   L.position_at_end block builder;
 
@@ -105,8 +106,9 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
       (name_of_var v, L.build_load (build_struct_field_ptr f_env_ptr i) "env_arg"  builder)
     ) free_vars |>  List.to_seq |> M.of_seq  in
 
-  codegen table body |> ignore;
-  (* L.build_ret (codegen table body) builder |> ignore; *)
+  L.build_ret (codegen table body) builder |> ignore;
+  L.position_at_end old_block builder;
+
   
   closure_ptr
 | A.Application (_, f, arg) -> (match Last.get_type f with
@@ -133,18 +135,19 @@ let builtin =
 
         
 let builtin_table =   
-  let init = L.declare_function "init" (L.function_type void_ptr_type [||]) the_module in
+  let init = L.declare_function "init" (L.function_type void_type [||]) the_module in
   let bb = L.append_block context "entry" init in
   L.position_at_end bb builder;
   let table = builtin |> List.map (fun (n, c) -> (n, codegen M.empty c)) |> List.to_seq |> M.of_seq in
   L.build_ret_void builder |> ignore;
 
-  (* Llvm_analysis.assert_valid_function init; *)
+  (* L.dump_module the_module; *)
+  Llvm_analysis.assert_valid_function init;
 
-  (* let init_fp = Llvm_executionengine.get_function_address "init" 
+  let init_fp = Llvm_executionengine.get_function_address "init" 
     (Foreign.funptr Ctypes.(void @-> returning void)) 
     the_execution_engine in
-  init_fp (); *)
+  init_fp ();
 
   table
 
