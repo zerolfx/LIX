@@ -1,4 +1,4 @@
-type typed_var = string * Type.t [@@deriving show]
+open Common
 
 type hast =
 | Primitive of Ast.primitive

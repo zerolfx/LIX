@@ -1,5 +1,3 @@
-
-
 let process (line: string) =
   let linebuf = Lexing.from_string line in
   try
@@ -9,10 +7,14 @@ let process (line: string) =
     Ast.show_ast ast |> print_endline;
     let hast = Hast.ast_to_hast ast in
     Hast.show_hast hast  |> print_endline;
+    let last = Last.hast_to_last hast in
+    Last.show_last last  |> print_endline;
+    Compiler.codegen_with_builtins last |> ignore;
+    Llvm.dump_module Compiler.the_module
   with
   | Parser.Error ->
       Printf.fprintf stderr "At offset %d: syntax error.\n%!" (Lexing.lexeme_start linebuf)
-  | e -> Printexc.to_string e |> print_endline; Printexc.print_backtrace stdout; flush stdout
+  | e -> Printexc.print_backtrace stdout; flush stdout; Printexc.to_string e |> print_endline
 
 
 let rec repl () =
@@ -26,4 +28,5 @@ let rec repl () =
     repl ()
 
 let () = 
+  Llvm.enable_pretty_stacktrace ();
   repl ()

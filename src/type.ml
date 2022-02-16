@@ -8,7 +8,7 @@ type t =
 | FunctionT of t * t
 | VarT of t
 | DummyT
-[@@deriving show]
+[@@deriving show, eq, ord]
 
 
 let rec parse_type (c: S.code): t = match c with
