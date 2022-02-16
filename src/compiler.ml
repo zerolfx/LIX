@@ -133,6 +133,7 @@ let builtin =
 
 let gen_builtin ((name, c) : string *  A.last) : string * L.llvalue =
   let global_closure = L.declare_global closure_ptr_type name the_module in
+  L.set_linkage L.Linkage.Internal global_closure;
   L.build_store (codegen M.empty c) global_closure builder |> ignore;
   (name, global_closure)
 
