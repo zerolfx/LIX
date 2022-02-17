@@ -16,21 +16,21 @@ let tests = [
     2
     "(+ 1 1)"
   );
-  "partial_application">::(fun _ -> 
+  "partial application">::(fun _ -> 
     assert_eval_result
     5
     "((+ 2) 3)"
   );
-  "lambda_desugar">::(fun _ -> 
+  "lambda desugar">::(fun _ -> 
     assert_eval_result
     9
     "((: (-> Int Int Int) (fn (a b) (+ a b))) 4 5)"
   );
-  "partial_lambda">::(fun _ -> assert_eval_result
+  "partial lambda">::(fun _ -> assert_eval_result
     6
     "((: (-> (-> Int Int) Int Int) (fn (f a) (f a))) (+ 2) 4)"
   );
-  "lambda_return_lambda">::(fun _ -> assert_eval_result
+  "lambda return lambda">::(fun _ -> assert_eval_result
     5
     "(((: (-> Int (-> Int Int)) 
           (fn x (: (-> Int Int)

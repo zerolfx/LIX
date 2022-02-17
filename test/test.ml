@@ -10,11 +10,7 @@ let code_to_int s =
 let assert_eval_result i s = assert_equal (code_to_int s) i
 
 
-let suite = 
-  "lambda">:::Lambda.tests
-
-
-
 let () =
   Lix.Jit.init_jit ();
-  run_test_tt_main suite
+  "lambda">:::Lambda.tests |> run_test_tt_main;
+  "define">:::Define.tests |> run_test_tt_main;
