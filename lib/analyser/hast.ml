@@ -83,7 +83,7 @@ let rec check_all_typed = function
 | _ -> true
 
 
-let ast_to_hast (a : Ast.ast) : hast =
-  let h = a |> Dast.ast_to_dast |> gen_hast |> type_hast [] in
+let dast_to_hast (a : Dast.dast) : hast =
+  let h = a |> gen_hast |> type_hast [] in
   assert (check_all_typed h);
   h

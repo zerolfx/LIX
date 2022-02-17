@@ -1,0 +1,8 @@
+(executable
+ (name test)
+ (public_name test)
+ (libraries 
+  lix
+  ounit2)
+ (link_deps (file ../stubs/libbindings.so))
+ (link_flags -cclib -Lstubs -cclib -lbindings))

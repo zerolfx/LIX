@@ -7,7 +7,7 @@ let process (line: string) =
     Syntax.show_code code |> print_endline;
     let ast = Ast.code_to_ast code in
     Ast.show_ast ast |> print_endline;
-    let hast = Hast.ast_to_hast ast in
+    let hast = ast |> Dast.ast_to_dast |> Hast.dast_to_hast in
     Hast.show_hast hast  |> print_endline;
     let last = Last.hast_to_last hast in
     Last.show_last last  |> print_endline;
@@ -28,6 +28,9 @@ let rec repl () =
   match option_line with
   | None -> 
     print_string "Bye.\n"
+  | Some "dump\n" -> 
+    Llvm.dump_module Compiler_common.the_module;
+    repl ()
   | Some line ->
     process line;
     repl ()

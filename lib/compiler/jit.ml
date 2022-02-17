@@ -16,7 +16,6 @@ let init_jit () : unit =
   let init = Builtins.build_init_builtins (Compiler.codegen M.empty) in
 
   verify_and_optimize init;
-  L.dump_module the_module;
 
   let init_fp = Llvm_executionengine.get_function_address "init_builtins" 
     (Foreign.funptr Ctypes.(void @-> returning void)) 
@@ -37,8 +36,6 @@ let codegen_repl (a: A.last) : Type.t * Ast.primitive option =
 
   L.build_ret (Compiler.codegen M.empty a) builder |> ignore;
   verify_and_optimize repl_function;
-  
-  L.dump_module the_module;
 
   let result = match ta with
   | Type.IntT -> 
@@ -58,9 +55,6 @@ let codegen_repl (a: A.last) : Type.t * Ast.primitive option =
     repl_fp ();
     None
   in
-
-  L.delete_block bb;
-  L.delete_function repl_function;
 
   Llvm_executionengine.remove_module the_module the_execution_engine;
 
