@@ -32,6 +32,11 @@ let closure_struct = L.struct_type context [| void_ptr_type ; void_ptr_type |]
 let closure_ptr_type = L.pointer_type closure_struct
 
 
+let declare_global name ty =
+  let global = L.define_global name (L.const_null ty) the_module in
+  L.set_linkage L.Linkage.Common global;
+  global 
+
 let gen_type = function
 | Type.IntT -> int_type
 | Type.BoolT -> bool_type

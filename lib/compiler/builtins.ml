@@ -25,8 +25,7 @@ let build_init_builtins (codegen : A.last -> L.llvalue) : L.llvalue =
   L.position_at_end bb builder;
 
   let gen_builtin (name, c) =
-    let global_closure = L.define_global name (L.const_pointer_null closure_ptr_type) the_module in
-    L.set_linkage L.Linkage.External_weak global_closure;
+    let global_closure = declare_global name closure_ptr_type in
     L.build_store (codegen c) global_closure builder |> ignore in
   List.iter gen_builtin builtin;
   
