@@ -52,8 +52,12 @@ let rec get_type = function
 
 let resolve_app (f_type : Type.t) (arg_type : Type.t) : Type.t = match f_type with
 | Type.FunctionT (arg_t, expr_t) ->
-  if arg_t == arg_type then expr_t else raise (Failure (
-    Core.sprintf "function arg type mismatch: %s %s" (Type.show f_type) (Type.show arg_type)))
+  if Type.equal arg_t arg_type then 
+    expr_t 
+  else (
+    Printf.printf "function arg type mismatch:\ngiven type:%s\nannotated type:%s\n" (Type.show arg_t) (Type.show arg_type);
+    raise (Failure "function arg type mismatch")
+  )
 | _ -> raise (Failure (Core.sprintf "function type expected: %s" (Type.show f_type)))
 
 let rec type_hast (table: typed_var list) (h: hast) : hast = match h with
