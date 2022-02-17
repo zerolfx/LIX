@@ -148,6 +148,8 @@ let gen_builtin ((name, c) : string *  A.last) : unit =
 
 
 let builtin_table = 
+  Llvm_executionengine.add_module the_module the_execution_engine;
+
   let init = L.declare_function "init_builtins" (L.function_type void_type [||]) the_module in
   let bb = L.append_block context "entry" init in
   L.position_at_end bb builder;
@@ -165,11 +167,13 @@ let builtin_table =
     (Foreign.funptr Ctypes.(void @-> returning void)) 
     the_execution_engine in
   init_fp ();
-  ()
+  Llvm_executionengine.remove_module the_module the_execution_engine
 
 
 
 let codegen_repl (a: A.last) : unit = 
+  Llvm_executionengine.add_module the_module the_execution_engine;
+
   let ta = Last.get_type a in
   let repl_function = L.declare_function "repl" (L.function_type (gen_type ta) [||]) the_module in
   let bb = L.append_block context "entry" repl_function in
@@ -200,4 +204,4 @@ let codegen_repl (a: A.last) : unit =
 
   L.delete_block bb;
 
-  ()
+  Llvm_executionengine.remove_module the_module the_execution_engine
