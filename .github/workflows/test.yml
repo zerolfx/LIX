@@ -2,19 +2,23 @@ name: test
 
 on:
   push:
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled'     
+        required: false
+        default: false
 
 jobs:
     test:
       runs-on: ubuntu-latest
 
       steps:
-        - uses: actions/checkout@v2
+        - name: Install LLVM
+          run: wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && sudo ./llvm.sh 13
         
-        - name: Install LLVM and Clang
-          uses: KyleMayes/install-llvm-action@v1
-          with:
-            version: 13
-        
+        - uses: actions/checkout@v2        
+
         - name: Setup Ocaml
           uses: ocaml/setup-ocaml@v2
           with:
@@ -24,6 +28,20 @@ jobs:
 
         - run: opam exec -- dune build
 
-        - run: opam exec -- dune exec test
+        - name: Prepare Coredump
+          run: mkdir core-dump && echo "${{ github.workspace }}/core-dump/corefile-%e-%p-%t" | sudo tee /proc/sys/kernel/core_pattern
+
+        - name: Setup tmate session
+          uses: mxschmitt/action-tmate@v3
+          if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled }}
+          timeout-minutes: 20
+
+        - run: ulimit -c unlimited && opam exec -- dune exec test
           env:
             LD_LIBRARY_PATH: _build/default/stubs
+
+        - uses: actions/upload-artifact@v2
+          if: ${{ failure() }}
+          with:
+            name: core
+            path: ./core-dump/*
