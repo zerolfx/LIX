@@ -37,8 +37,8 @@ let build_malloc_ptr (t : L.lltype) : L.llvalue =
   L.build_malloc t "malloc" builder
 
 
-let build_struct_field_ptr (ptr : L.llvalue) (field : int) : L.llvalue = 
-  L.build_struct_gep ptr field "struct_field_ptr" builder
+let build_struct_field_ptr ?(name : string = "struct_field_ptr") (ptr : L.llvalue) (field : int) : L.llvalue = 
+  L.build_struct_gep ptr field name builder
 
 
 let codegen_primitive = function
@@ -52,6 +52,9 @@ let gen_type = function
 | Type.FunctionT _ -> closure_ptr_type
 | t -> raise (Failure (Printf.sprintf "unsupported type %s" (Type.show t)))
 
+let gen_llvm_function_type (arg : Type.t) (body : Type.t) : L.lltype =
+  L.function_type (gen_type body) [| gen_type arg ; void_ptr_type |]
+
 let gen_env_type (vars : typed_var list) : L.lltype =
   L.struct_type context (List.map (Core.Fn.compose gen_type type_of_var) vars |> Array.of_list)
   
@@ -63,14 +66,14 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
 | A.Var (name, _) -> 
   if String.starts_with ~prefix:"__llvm" name then
     codegen_builtin var_table name
-  else if String.starts_with ~prefix:"__builtin" name then 
-    L.build_load (M.find name var_table) "load_builtin" builder
+  else if String.starts_with ~prefix:"__builtin" name then
+    L.build_load (L.lookup_global name the_module |> Option.get) "load_global" builder
   else M.find name var_table
 | A.Lambda (name, free_vars, arg, body) -> 
   let env_type = gen_env_type free_vars in
   let env_ptr = build_malloc_ptr env_type in
 
-  let f_llvm_type = L.function_type (Last.get_type body |> gen_type) [| type_of_var arg |> gen_type ; void_ptr_type |]  in
+  let f_llvm_type = gen_llvm_function_type (type_of_var arg) (A.get_type body)  in
   let f = L.declare_function name f_llvm_type the_module in
 
   let closure_ptr = build_malloc_ptr closure_struct in
@@ -83,11 +86,11 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
 
   L.build_store 
     (L.build_bitcast f void_ptr_type "f_ptr" builder) 
-    (L.build_struct_gep closure_ptr 0 "f_ptr" builder) builder |> ignore;
+    (build_struct_field_ptr ~name:"f_ptr" closure_ptr 0 ) builder |> ignore;
 
   L.build_store
     (L.build_bitcast env_ptr void_ptr_type "env_ptr" builder)
-    (L.build_struct_gep closure_ptr 1 "env_ptr" builder) builder |> ignore;
+    (build_struct_field_ptr ~name:"env_ptr" closure_ptr 1) builder |> ignore;
   
   
   let old_block = L.insertion_block builder in
@@ -107,20 +110,25 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   L.position_at_end old_block builder;
     
   verify_function f;
+  Llvm.PassManager.run_function f the_fpm |> ignore;
   
   closure_ptr
 | A.Application (_, f, arg) -> (match Last.get_type f with
-  | Type.FunctionT (f_type, arg_type) ->
+  | Type.FunctionT (arg_type, body_type) ->
     let closure_ptr = codegen var_table f in
-    let f_void_ptr = L.build_struct_gep closure_ptr 0 "f_void_ptr" builder in
-    let env_void_ptr = L.build_struct_gep closure_ptr 1 "env_void_ptr" builder in
-    let f_llvm_type = L.function_type (gen_type f_type) [| (gen_type arg_type) ; void_ptr_type |] in
-    let f_ptr = L.build_bitcast f_void_ptr f_llvm_type "f_ptr" builder in
-    L.build_call f_ptr [| codegen var_table arg ; env_void_ptr |] "call" builder
+    let f_void_ptr = build_struct_field_ptr ~name:"f_ptr" closure_ptr 0 in
+    let env_ptr_ptr = build_struct_field_ptr ~name:"env_ptr" closure_ptr 1 in
+    let env_ptr = L.build_load env_ptr_ptr "env_ptr" builder in
+    let f_llvm_ptr_type = L.pointer_type (gen_llvm_function_type arg_type body_type) in
+    let f_ptr = L.build_bitcast f_void_ptr f_llvm_ptr_type "f_ptr" builder in
+    L.build_call f_ptr [| codegen var_table arg ; env_ptr |] "call" builder
   | _ -> raise (Failure "invalid function type")
 )
 and codegen_builtin (var_table : L.llvalue M.t) (name : string) : L.llvalue = match name with
 | "__llvm__add" -> L.build_add (M.find "a" var_table) (M.find "b" var_table) "add" builder
+| "__llvm__printi" -> 
+    let printi = L.declare_function "__printi" (L.function_type int_type [| int_type |]) the_module in
+    L.build_call printi [| (M.find "a" var_table) |] "call_printi" builder
 | _ -> raise (Failure "unsupported builtin")
 
 
@@ -128,54 +136,50 @@ let builtin =
   [("__builtin_add2", 
     A.Lambda ("__builtin_lam_add2", [], ("a", Type.IntT), 
       A.Lambda ("__builtin_lam_add1", [("a", Type.IntT)], ("b", Type.IntT), 
-        A.Var ("__llvm__add", Type.IntT))))]
+        A.Var ("__llvm__add", Type.IntT))));
+  ("__builtin_printi",
+    A.Lambda ("__builtin_lam_printi", [], ("a", Type.IntT), 
+      A.Var ("__llvm__printi", Type.IntT)))]
 
 
-let gen_builtin ((name, c) : string *  A.last) : string * L.llvalue =
+let gen_builtin ((name, c) : string *  A.last) : unit =
   let global_closure = L.declare_global closure_ptr_type name the_module in
-  L.set_linkage L.Linkage.Internal global_closure;
-  L.build_store (codegen M.empty c) global_closure builder |> ignore;
-  (name, global_closure)
+  L.build_store (codegen M.empty c) global_closure builder |> ignore
 
 
 let builtin_table = 
-
-  (* Llvm_scalar_opts.add_memory_to_register_promotion the_fpm ;
-  Llvm_scalar_opts.add_instruction_combination the_fpm ;
-  Llvm_scalar_opts.add_reassociation the_fpm ;
-  Llvm_scalar_opts.add_gvn the_fpm ;
-  Llvm_scalar_opts.add_cfg_simplification the_fpm ;
-  Llvm.PassManager.initialize the_fpm |> ignore ; *)
-
   let init = L.declare_function "init_builtins" (L.function_type void_type [||]) the_module in
   let bb = L.append_block context "entry" init in
   L.position_at_end bb builder;
   
-  let table = List.map gen_builtin builtin |> List.to_seq |> M.of_seq in
+  List.iter gen_builtin builtin;
+  
 
   L.build_ret_void builder |> ignore;
 
   verify_function init;
+  Llvm.PassManager.run_function init the_fpm |> ignore;
   L.dump_module the_module;
 
   let init_fp = Llvm_executionengine.get_function_address "init_builtins" 
     (Foreign.funptr Ctypes.(void @-> returning void)) 
     the_execution_engine in
   init_fp ();
-
-  table
-
+  ()
 
 
-let codegen_repl (a: A.last) : L.llvalue = 
+
+let codegen_repl (a: A.last) : unit = 
   let ta = Last.get_type a in
-
   let repl_function = L.declare_function "repl" (L.function_type (gen_type ta) [||]) the_module in
   let bb = L.append_block context "entry" repl_function in
   L.position_at_end bb builder;
-  L.build_ret (codegen builtin_table a) builder |> ignore;
-  verify_function repl_function;
 
+
+
+  L.build_ret (codegen M.empty a) builder |> ignore;
+  verify_function repl_function;
+  
   L.dump_module the_module;
 
   Printf.printf "type : %s" (Type.show ta);
@@ -185,7 +189,7 @@ let codegen_repl (a: A.last) : L.llvalue =
     let repl_fp = Llvm_executionengine.get_function_address "repl" 
       (Foreign.funptr Ctypes.(void @-> returning int64_t)) 
       the_execution_engine in
-    Printf.printf ", eval : %Ld" (repl_fp ())
+    Printf.printf ", eval : %Ld\n" (repl_fp ())
   | _ -> 
     let repl_fp = Llvm_executionengine.get_function_address "repl" 
       (Foreign.funptr Ctypes.(void @-> returning void)) 
@@ -193,6 +197,7 @@ let codegen_repl (a: A.last) : L.llvalue =
     repl_fp ();
     print_newline ()
   );
-  
 
-  repl_function
+  L.delete_block bb;
+
+  ()

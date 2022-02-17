@@ -25,7 +25,8 @@ let rec gen_hast (dast: Dast.dast) = match dast with
 
 module M = Map.Make (String)
 let globals = [
-  ("__builtin_add2", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)))
+  ("__builtin_add2", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)));
+  ("__builtin_printi", Type.FunctionT (Type.IntT, Type.IntT))
 ] |> List.to_seq |> M.of_seq
 
 let rec lookup_local (name : string) (table : typed_var list) : typed_var option =

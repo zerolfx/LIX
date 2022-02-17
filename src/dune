@@ -6,16 +6,29 @@
  (flags -la 2)
 )
 
+(rule
+ (targets libbindings.so)
+ (deps bindings.c)
+ (action (run gcc -shared -fPIC %{deps} -o %{targets})))
+
 (executable
  (name repl)
  (public_name repl)
+ (modes byte exe) ; byte for debugging
  (libraries
-  core
-  str
-  llvm
-  llvm.analysis
-  llvm.executionengine)
- (preprocess (pps 
-  ppx_deriving.show
-  ppx_deriving.eq
-  ppx_deriving.ord)))
+   core
+   str
+   ctypes.foreign
+   llvm
+   llvm.analysis
+   llvm.executionengine
+   llvm.target
+   llvm.scalar_opts)
+ (link_deps (file libbindings.so))
+ (link_flags -cclib -Lsrc -cclib -lbindings)
+ (ocamlc_flags -dllib /usr/lib/libLLVM.so)
+ (preprocess 
+  (pps 
+   ppx_deriving.show
+   ppx_deriving.eq
+   ppx_deriving.ord)))
