@@ -5,6 +5,7 @@ type hast =
 | Var of typed_var
 | Lambda of typed_var * hast
 | Application of Type.t * hast * hast
+| Define of string * hast
 [@@deriving show]
 
 let rec gen_hast (dast: Dast.dast) = match dast with
@@ -18,17 +19,19 @@ let rec gen_hast (dast: Dast.dast) = match dast with
     | Type.FunctionT (tv, te) -> Lambda ((v, tv), gen_hast (Dast.TypeAnnotation (te, e)))
     | _ -> raise (Failure "lambda type mismatch")
     )
+  | Dast.Define _ -> raise (Failure "define must be at top level")
   )
 | Dast.Variable s -> Var (s, Type.DummyT)
 | Dast.Application (v, arg) -> Application (Type.DummyT, gen_hast v, gen_hast arg)
 | Dast.Primitive p -> Primitive p
+| Dast.Define (s, e) -> Define (s, gen_hast e)
 | _ -> raise (Failure (Core.sprintf "unexpected ast node: %s" (Dast.show_dast dast)))
 
 module M = Map.Make (String)
 let globals = [
   ("__builtin_add2", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)));
   ("__builtin_printi", Type.FunctionT (Type.IntT, Type.IntT))
-] |> List.to_seq |> M.of_seq
+] |> List.to_seq |> M.of_seq |> ref
 
 let rec lookup_local (name : string) (table : typed_var list) : typed_var option =
   match table with
@@ -39,7 +42,7 @@ let rec lookup_local (name : string) (table : typed_var list) : typed_var option
 let lookup (name : string) (table : typed_var list) : typed_var =
   match lookup_local name table with
   | Some tv -> tv
-  | None -> match M.find_opt name globals with
+  | None -> match M.find_opt name !globals with
     | Some tv -> (name, tv)
     | None -> raise (Failure (Core.sprintf "unknown variable: %s" name))
 
@@ -50,6 +53,7 @@ let rec get_type = function
 | Var (_, t) -> t
 | Lambda ((_, t), e) -> Type.FunctionT (t, get_type e)
 | Application (t, _, _) -> t
+| Define (_, e) -> get_type e
 
 let resolve_app (f_type : Type.t) (arg_type : Type.t) : Type.t = match f_type with
 | Type.FunctionT (arg_t, expr_t) ->
@@ -64,7 +68,9 @@ let resolve_app (f_type : Type.t) (arg_type : Type.t) : Type.t = match f_type wi
 let rec type_hast (table: typed_var list) (h: hast) : hast = match h with
 | Primitive _ -> h
 | Var (name, Type.DummyT) -> Var (lookup name table)
+| Var _ -> h
 | Lambda (v, e) -> Lambda (v, type_hast (v :: table) e)
+| Define (name, e) -> Define (name, type_hast table e)
 | Application (t, f, arg) -> (
   let typed_f = type_hast table f in
   let typed_arg = type_hast table arg in
@@ -73,18 +79,22 @@ let rec type_hast (table: typed_var list) (h: hast) : hast = match h with
   if t != Type.DummyT then assert (t == app_type);
   Application (app_type, typed_f, typed_arg)
 )
-| _ -> raise (Failure (Core.sprintf "cannot type %s" (show_hast h)))
 
 
 let rec check_all_typed = function
 | Var (_, Type.DummyT) -> false
+| Var _ -> true
 | Lambda (v, e) -> check_all_typed (Var v) && check_all_typed e
 | Application (Type.DummyT, _, _) -> false
 | Application (_, f, arg) -> check_all_typed f && check_all_typed arg
-| _ -> true
+| Define (_, e) -> check_all_typed e
+| Primitive _ -> true
 
 
 let dast_to_hast (a : Dast.dast) : hast =
+  (match a with
+  | Dast.Define (name, Dast.TypeAnnotation (t, _)) -> globals := M.add name t !globals
+  | _ -> ());
   let h = a |> gen_hast |> type_hast [] in
   assert (check_all_typed h);
   h

@@ -26,12 +26,22 @@ let gen_env_type (vars : typed_var list) : L.lltype =
 
 let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a with
 | A.Primitive p -> codegen_primitive p
+
 | A.Var (name, _) -> 
   if String.starts_with ~prefix:"__llvm" name then
     Builtins.codegen_builtin var_table name
   else if String.starts_with ~prefix:"__builtin" name then
     L.build_load (L.lookup_global name the_module |> Option.get) "load_global" builder
-  else M.find name var_table
+  else 
+    (match M.find_opt name var_table with
+    | Some v -> v
+    | None -> L.build_load (L.lookup_global name the_module |> Option.get) "load_global" builder)
+
+| A.Define (name, ast) ->
+  let global = L.declare_global (gen_type (a |> Last.get_type)) name the_module in
+  L.build_store (codegen var_table ast) global builder |> ignore;
+  L.build_load global "load_global" builder
+
 | A.Lambda (name, free_vars, arg, body) -> 
   let env_type = gen_env_type free_vars in
   let env_ptr = build_malloc_ptr env_type in
@@ -76,6 +86,7 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   Llvm.PassManager.run_function f the_fpm |> ignore;
   
   closure_ptr
+
 | A.Application (_, f, arg) -> (match Last.get_type f with
   | Type.FunctionT (arg_type, body_type) ->
     let closure_ptr = codegen var_table f in

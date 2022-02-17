@@ -14,6 +14,7 @@ type ast =
 | Primitive of primitive
 | Application of ast * ast list
 | Variable of var
+| Define of var * ast
 [@@deriving show]
 
 exception Err of string
@@ -27,8 +28,9 @@ let rec gen_ast (c: S.code): ast = match c with
 | S.BoolLit b -> Primitive (Bool b)
 | S.Symbol s -> Variable s
 | S.Form [S.Symbol ":"; t; e] -> TypeAnnotation (Type.parse_type t, gen_ast e)
-| S.Form [S.Symbol "fn"; (S.Form args); e] -> Lambda (List.map parse_arg args, gen_ast e)
-| S.Form [S.Symbol "fn"; (S.Symbol arg); e] -> Lambda ([arg], gen_ast e)
+| S.Form [S.Symbol "def"; S.Symbol name; e] -> Define (name, (gen_ast e))
+| S.Form [S.Symbol "fn"; S.Form args; e] -> Lambda (List.map parse_arg args, gen_ast e)
+| S.Form [S.Symbol "fn"; S.Symbol arg; e] -> Lambda ([arg], gen_ast e)
 | S.Form (f :: es) -> Application (gen_ast f, List.map gen_ast es)
 | _ -> raise (Err "not supported")
 
