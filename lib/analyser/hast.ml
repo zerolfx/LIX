@@ -8,9 +8,10 @@ type hast =
 [@@deriving show]
 
 let rec gen_hast (dast: Dast.dast) = match dast with
-| Dast.TypeAnnotation (t, a) -> (match a with
+| Dast.TypeAnnotation (t, ast) -> (match ast with
   | Dast.Primitive p -> Primitive p
-  | Dast.TypeAnnotation _ -> raise (Failure "type_annotation for type_annotation is not allowed")
+  | Dast.TypeAnnotation (t2, _) ->
+    if Type.equal t t2 then gen_hast ast else raise (Failure "type mismatch")
   | Dast.Variable s -> Var (s, t)
   | Dast.Application (v, arg) -> Application (t, gen_hast v, gen_hast arg)
   | Dast.Lambda (v, e) -> (match t with
