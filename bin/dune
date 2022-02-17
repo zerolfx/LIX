@@ -1,0 +1,7 @@
+(executable
+ (name repl)
+ (public_name repl)
+ (libraries 
+  lix)
+ (link_deps (file ../stubs/libbindings.so))
+ (link_flags -cclib -Lstubs -cclib -lbindings))

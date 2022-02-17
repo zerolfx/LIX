@@ -1,8 +1,10 @@
+open Lix
+
 let process (line: string) =
   let linebuf = Lexing.from_string line in
   try
     let code = Parser.code_eof Lexer.token linebuf in
-    Syntax.print_code code;
+    Syntax.show_code code |> print_endline;
     let ast = Ast.code_to_ast code in
     Ast.show_ast ast |> print_endline;
     let hast = Hast.ast_to_hast ast in
