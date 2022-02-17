@@ -12,9 +12,23 @@ let the_execution_engine =
   | false -> raise (Failure "failed to initialize execution engine"));
   Llvm_executionengine.create the_module
 
-let the_fpm = Llvm.PassManager.create_function the_module
+let the_fpm = 
+  let fpm = Llvm.PassManager.create_function the_module in
+  Llvm_scalar_opts.add_memory_to_register_promotion fpm;
+  Llvm_scalar_opts.add_instruction_combination fpm;
+  Llvm_scalar_opts.add_reassociation fpm;
+  Llvm_scalar_opts.add_gvn fpm;
+  Llvm_scalar_opts.add_cfg_simplification fpm;
+  Llvm.PassManager.initialize fpm |> ignore;
+  fpm
+
+
 let builder = L.builder context
 
+
+let verify_and_optimize f : unit = 
+  if not (Llvm_analysis.verify_function f) then (dump_value f; Llvm_analysis.assert_valid_function f);
+  Llvm.PassManager.run_function f the_fpm |> ignore
 
 
 let int_type = L.i64_type context
@@ -109,14 +123,15 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   L.build_ret (codegen table body) builder |> ignore;
   L.position_at_end old_block builder;
     
-  verify_function f;
+  verify_and_optimize f;
   Llvm.PassManager.run_function f the_fpm |> ignore;
   
   closure_ptr
 | A.Application (_, f, arg) -> (match Last.get_type f with
   | Type.FunctionT (arg_type, body_type) ->
     let closure_ptr = codegen var_table f in
-    let f_void_ptr = build_struct_field_ptr ~name:"f_ptr" closure_ptr 0 in
+    let f_void_ptr_ptr = build_struct_field_ptr ~name:"f_ptr_ptr" closure_ptr 0 in
+    let f_void_ptr = L.build_load f_void_ptr_ptr "f_ptr" builder in
     let env_ptr_ptr = build_struct_field_ptr ~name:"env_ptr" closure_ptr 1 in
     let env_ptr = L.build_load env_ptr_ptr "env_ptr" builder in
     let f_llvm_ptr_type = L.pointer_type (gen_llvm_function_type arg_type body_type) in
@@ -132,14 +147,15 @@ and codegen_builtin (var_table : L.llvalue M.t) (name : string) : L.llvalue = ma
 | _ -> raise (Failure "unsupported builtin")
 
 
-let builtin = 
-  [("__builtin_add2", 
+let builtin = [
+  ("__builtin_add2", 
     A.Lambda ("__builtin_lam_add2", [], ("a", Type.IntT), 
       A.Lambda ("__builtin_lam_add1", [("a", Type.IntT)], ("b", Type.IntT), 
         A.Var ("__llvm__add", Type.IntT))));
   ("__builtin_printi",
     A.Lambda ("__builtin_lam_printi", [], ("a", Type.IntT), 
-      A.Var ("__llvm__printi", Type.IntT)))]
+      A.Var ("__llvm__printi", Type.IntT)))
+]
 
 
 let gen_builtin ((name, c) : string *  A.last) : unit =
@@ -159,7 +175,7 @@ let builtin_table =
 
   L.build_ret_void builder |> ignore;
 
-  verify_function init;
+  verify_and_optimize init;
   Llvm.PassManager.run_function init the_fpm |> ignore;
   L.dump_module the_module;
 
@@ -174,15 +190,17 @@ let builtin_table =
 let codegen_repl (a: A.last) : unit = 
   Llvm_executionengine.add_module the_module the_execution_engine;
 
+  let repl_fn = gen_name "repl" in
+
   let ta = Last.get_type a in
-  let repl_function = L.declare_function "repl" (L.function_type (gen_type ta) [||]) the_module in
+  let repl_function = L.declare_function repl_fn (L.function_type (gen_type ta) [||]) the_module in
   let bb = L.append_block context "entry" repl_function in
   L.position_at_end bb builder;
 
 
 
   L.build_ret (codegen M.empty a) builder |> ignore;
-  verify_function repl_function;
+  verify_and_optimize repl_function;
   
   L.dump_module the_module;
 
@@ -190,12 +208,12 @@ let codegen_repl (a: A.last) : unit =
 
   (match ta with
   | Type.IntT -> 
-    let repl_fp = Llvm_executionengine.get_function_address "repl" 
+    let repl_fp = Llvm_executionengine.get_function_address repl_fn 
       (Foreign.funptr Ctypes.(void @-> returning int64_t)) 
       the_execution_engine in
     Printf.printf ", eval : %Ld\n" (repl_fp ())
   | _ -> 
-    let repl_fp = Llvm_executionengine.get_function_address "repl" 
+    let repl_fp = Llvm_executionengine.get_function_address repl_fn 
       (Foreign.funptr Ctypes.(void @-> returning void)) 
       the_execution_engine in
     repl_fp ();
@@ -203,5 +221,6 @@ let codegen_repl (a: A.last) : unit =
   );
 
   L.delete_block bb;
+  L.delete_function repl_function;
 
   Llvm_executionengine.remove_module the_module the_execution_engine

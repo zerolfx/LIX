@@ -5,4 +5,12 @@ let name_of_var (t : typed_var) = match t with | (n, _) -> n
 
 let dump_value v = Llvm.dump_value v; Core.fprintf stderr "\n"; flush stderr
 
-let verify_function f : unit = if not (Llvm_analysis.verify_function f) then (dump_value f; Llvm_analysis.assert_valid_function f)
+
+module M = Map.Make (String)
+let counter = ref M.empty
+let gen_name prefix =
+  let c = match M.find_opt prefix !counter with
+  | None -> 0
+  | Some x -> x + 1 in
+  counter := M.add prefix c !counter;
+  prefix ^ "_" ^Int.to_string c

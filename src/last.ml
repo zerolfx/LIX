@@ -7,12 +7,6 @@ module VS = Set.Make(
   end
 )
 
-
-let lambda_count = ref 0
-let gen_lambda_name () =
-  lambda_count := !lambda_count + 1;
-"__lambda_" ^ string_of_int !lambda_count
-
 let rec free_vars = function
 | Hast.Primitive _ -> VS.empty
 | Hast.Var v -> VS.singleton v
@@ -38,4 +32,4 @@ let rec hast_to_last (h : Hast.hast) : last = match h with
 | Hast.Primitive p -> Primitive p
 | Hast.Var v -> Var v
 | Hast.Application (t, f, a) -> Application (t, hast_to_last f, hast_to_last a)
-| Hast.Lambda (v, e) -> Lambda (gen_lambda_name(), free_vars h |> VS.to_seq |> List.of_seq, v, hast_to_last e)
+| Hast.Lambda (v, e) -> Lambda (gen_name "lambda", free_vars h |> VS.to_seq |> List.of_seq, v, hast_to_last e)
