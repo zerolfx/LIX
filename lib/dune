@@ -20,7 +20,6 @@
   llvm.executionengine
   llvm.target
   llvm.scalar_opts)
- ; (modules analyser)
  (preprocess 
   (pps 
    ppx_deriving.show
