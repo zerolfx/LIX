@@ -11,7 +11,11 @@ let process (line: string) =
     Hast.show_hast hast  |> print_endline;
     let last = Last.hast_to_last hast in
     Last.show_last last  |> print_endline;
-    Jit.codegen_repl last
+    let (result_type, result) = Jit.codegen_repl last in
+    Printf.printf "Result type: %s\n" (Type.show result_type);
+    match result with
+    | Some v -> Printf.printf "Eval to: %s\n" (Ast.show_primitive v)
+    | _ -> ()
   with
   | Parser.Error ->
       Printf.fprintf stderr "At offset %d: syntax error.\n%!" (Lexing.lexeme_start linebuf)

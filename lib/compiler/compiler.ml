@@ -2,8 +2,6 @@ open Common
 open Compiler_common
 
 
-
-
 let build_malloc_ptr (t : L.lltype) : L.llvalue = 
   L.build_malloc t "malloc" builder
 
