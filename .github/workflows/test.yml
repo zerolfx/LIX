@@ -1,0 +1,29 @@
+name: test
+
+on:
+  push:
+
+jobs:
+    test:
+      runs-on: ubuntu-latest
+
+      steps:
+        - uses: actions/checkout@v2
+        
+        - name: Install LLVM and Clang
+          uses: KyleMayes/install-llvm-action@v1
+          with:
+            version: 13
+        
+        - name: Setup Ocaml
+          uses: ocaml/setup-ocaml@v2
+          with:
+            ocaml-compiler: 4.13.x
+            
+        - run: opam install . --deps-only --with-test
+
+        - run: opam exec -- dune build
+
+        - run: opam exec -- dune exec test
+          env:
+            LD_LIBRARY_PATH: _build/default/stubs
