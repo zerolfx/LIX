@@ -39,7 +39,7 @@ let gen_type = function
 | t -> raise (Failure (Printf.sprintf "unsupported type %s" (Type.show t)))
 
 
-let dump_value v = Llvm.dump_value v; Core.fprintf stderr "\n"; flush stderr
+let dump_value v = L.dump_value v; Core.fprintf stderr "\n"; flush stderr
 
 let verify_and_optimize f : unit = 
   if not (Llvm_analysis.verify_function f) then (dump_value f; Llvm_analysis.assert_valid_function f);

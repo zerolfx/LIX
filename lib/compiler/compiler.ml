@@ -38,7 +38,8 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
     | None -> L.build_load (L.lookup_global name the_module |> Option.get) "load_global" builder)
 
 | A.Define (name, ast) ->
-  let global = L.declare_global (gen_type (a |> Last.get_type)) name the_module in
+  let global = L.define_global name (a |> Last.get_type |> gen_type |> L.const_null) the_module in
+  L.set_linkage L.Linkage.External_weak global;
   L.build_store (codegen var_table ast) global builder |> ignore;
   L.build_load global "load_global" builder
 
