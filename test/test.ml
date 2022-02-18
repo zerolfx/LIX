@@ -15,3 +15,5 @@ let () =
   "lambda">:::Lambda.tests |> run_test_tt_main;
   "define">:::Define.tests |> run_test_tt_main;
   "bool">:::Bool.tests |> run_test_tt_main;
+  "if">:::If.tests |> run_test_tt_main;
+  "general">:::General.tests |> run_test_tt_main;

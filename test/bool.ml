@@ -1,36 +1,29 @@
 open OUnit2
-
-let code_to_bool s = 
-  let code = Lix.Parser.code_eof Lix.Lexer.token (Lexing.from_string s) in
-  let ast = Lix.Pipeline.code_to_last code in
-  match Lix.Jit.codegen_repl ast with
-  | _, Some (Lix.Ast.Bool b) -> b
-  | _ -> raise (Failure "result is not an int")
-
-let assert_eval_result b s = assert_equal (code_to_bool s) b
-
+open Common
 
 let tests = [
-  "simple compare">::(fun _ -> 
-    assert_eval_result
+  "simple compare">::(
+    assert_eval_bool
     true
     "(< 1 2)"
   );
-  "equality">::(fun _ -> 
-    assert_eval_result
+  "equality">::(
+    assert_eval_bool
     false
     "(== 2 3)"
   );
-  "bool and">::(fun _ -> 
-    assert_eval_result
+  "bool and">::(
+    assert_eval_bool
     true
     "(&& true true)"
   );
-  "bool or">::(fun _ -> assert_eval_result
+  "bool or">::(
+    assert_eval_bool
     true
     "(|| true false)"
   );
-  "bool not">::(fun _ -> assert_eval_result
+  "bool not">::(
+    assert_eval_bool
     false
     "(not true)"
   );
