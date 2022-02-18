@@ -100,5 +100,37 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   | _ -> raise (Failure "invalid function type")
 )
 
+| A.If (c, e1, e2) ->
+  let c_val = codegen var_table c in
+
+  let start_bb = L.insertion_block builder in
+  let the_function = L.block_parent start_bb in
+
+  let true_bb = L.append_block context "true" the_function in
+  L.position_at_end true_bb builder;
+  let true_val = codegen var_table e1 in
+  let new_true_bb = L.insertion_block builder in
+
+  let false_bb = L.append_block context "false" the_function in
+  L.position_at_end false_bb builder;
+  let false_val = codegen var_table e2 in
+  let new_false_bb = L.insertion_block builder in
+  
+  let end_bb = L.append_block context "end" the_function in
+  L.position_at_end end_bb builder;
+  let phi = L.build_phi [(true_val, new_true_bb); (false_val, new_false_bb)] "if_result" builder in
+  
+  L.position_at_end start_bb builder;
+  L.build_cond_br c_val true_bb false_bb builder |> ignore;
+  
+  L.position_at_end new_true_bb builder;
+  L.build_br end_bb builder |> ignore;
+  L.position_at_end new_false_bb builder;
+  L.build_br end_bb builder |> ignore;
+  
+  L.position_at_end end_bb builder;
+  phi
+
+
 
 

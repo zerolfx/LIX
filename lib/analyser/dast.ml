@@ -7,6 +7,7 @@ type dast =
 | Application of dast * dast
 | Variable of var
 | Define of var * dast
+| If of dast * dast * dast
 [@@deriving show]
 
 
@@ -28,5 +29,6 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Lambda (a0 :: args, e) -> desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
 
 | Ast.Define (v, e) -> Define (v, desugar_ast e)
+| Ast.If (c, e1, e2) -> If (desugar_ast c, desugar_ast e1, desugar_ast e2)
 
 let ast_to_dast (a: Ast.ast): dast = desugar_ast a

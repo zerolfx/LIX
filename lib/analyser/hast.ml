@@ -6,6 +6,7 @@ type hast =
 | Lambda of typed_var * hast
 | Application of Type.t * hast * hast
 | Define of string * hast
+| If of hast * hast * hast
 [@@deriving show]
 
 let rec gen_hast (dast: Dast.dast) = match dast with
@@ -19,12 +20,14 @@ let rec gen_hast (dast: Dast.dast) = match dast with
     | Type.FunctionT (tv, te) -> Lambda ((v, tv), gen_hast (Dast.TypeAnnotation (te, e)))
     | _ -> raise (Failure "lambda type mismatch")
     )
+  | Dast.If (c, e1, e2) -> If (gen_hast (Dast.TypeAnnotation (Type.BoolT, c)), gen_hast (Dast.TypeAnnotation (t, e1)), gen_hast (Dast.TypeAnnotation (t, e2)))
   | Dast.Define _ -> raise (Failure "define must be at top level")
   )
 | Dast.Variable s -> Var (s, Type.DummyT)
 | Dast.Application (v, arg) -> Application (Type.DummyT, gen_hast v, gen_hast arg)
 | Dast.Primitive p -> Primitive p
 | Dast.Define (s, e) -> Define (s, gen_hast e)
+| Dast.If (c, e1, e2) -> If (gen_hast (Dast.TypeAnnotation (Type.BoolT, c)), gen_hast e1, gen_hast e2)
 | _ -> raise (Failure (Core.sprintf "unexpected ast node: %s" (Dast.show_dast dast)))
 
 module M = Map.Make (String)
@@ -38,12 +41,12 @@ let rec lookup_local (name : string) (table : typed_var list) : typed_var option
   | (v, _) as tv :: rest ->
     if v = name then Some tv else lookup_local name rest
 
-let lookup (name : string) (table : typed_var list) : typed_var =
+let lookup_opt (name : string) (table : typed_var list) : typed_var option =
   match lookup_local name table with
-  | Some tv -> tv
+  | Some tv -> Some tv
   | None -> match M.find_opt name !globals with
-    | Some tv -> (name, tv)
-    | None -> raise (Failure (Core.sprintf "unknown variable: %s" name))
+    | Some tv -> Some (name, tv)
+    | None -> None
 
 
 let rec get_type = function
@@ -53,6 +56,7 @@ let rec get_type = function
 | Lambda ((_, t), e) -> Type.FunctionT (t, get_type e)
 | Application (t, _, _) -> t
 | Define (_, e) -> get_type e
+| If (_, e1, e2) -> assert (Type.equal (get_type e1) (get_type e2)); get_type e1
 
 let resolve_app (f_type : Type.t) (arg_type : Type.t) : Type.t = match f_type with
 | Type.FunctionT (arg_t, expr_t) ->
@@ -66,10 +70,11 @@ let resolve_app (f_type : Type.t) (arg_type : Type.t) : Type.t = match f_type wi
 
 let rec type_hast (table: typed_var list) (h: hast) : hast = match h with
 | Primitive _ -> h
-| Var (name, Type.DummyT) -> Var (lookup name table)
+| Var (name, Type.DummyT) -> Var (lookup_opt name table |> Option.get)
 | Var _ -> h
 | Lambda (v, e) -> Lambda (v, type_hast (v :: table) e)
 | Define (name, e) -> Define (name, type_hast table e)
+| If (c, e1, e2) -> If (type_hast table c, type_hast table e1, type_hast table e2)
 | Application (t, f, arg) -> (
   let typed_f = type_hast table f in
   let typed_arg = type_hast table arg in
@@ -88,6 +93,7 @@ let rec check_all_typed = function
 | Application (_, f, arg) -> check_all_typed f && check_all_typed arg
 | Define (_, e) -> check_all_typed e
 | Primitive _ -> true
+| If (c, e1, e2) -> check_all_typed c && check_all_typed e1 && check_all_typed e2
 
 
 let dast_to_hast (a : Dast.dast) : hast =
