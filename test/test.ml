@@ -14,3 +14,4 @@ let () =
   Lix.Jit.init_jit ();
   "lambda">:::Lambda.tests |> run_test_tt_main;
   "define">:::Define.tests |> run_test_tt_main;
+  "bool">:::Bool.tests |> run_test_tt_main;

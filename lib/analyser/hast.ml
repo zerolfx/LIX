@@ -28,10 +28,9 @@ let rec gen_hast (dast: Dast.dast) = match dast with
 | _ -> raise (Failure (Core.sprintf "unexpected ast node: %s" (Dast.show_dast dast)))
 
 module M = Map.Make (String)
-let globals = [
-  ("__builtin_add2", Type.FunctionT (Type.IntT, Type.FunctionT (Type.IntT, Type.IntT)));
-  ("__builtin_printi", Type.FunctionT (Type.IntT, Type.IntT))
-] |> List.to_seq |> M.of_seq |> ref
+let globals = List.map 
+  (fun Builtin_constants.{ internal_name; ty; _ } -> (internal_name, ty) ) 
+  Builtin_constants.builtins  |> List.to_seq |> M.of_seq |> ref
 
 let rec lookup_local (name : string) (table : typed_var list) : typed_var option =
   match table with

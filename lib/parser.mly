@@ -4,6 +4,7 @@
 
 %token LPAREN RPAREN
 %token <int> INT_LIT
+%token <bool> BOOL_LIT
 %token <string> Symbol
 %token EOF
 
@@ -21,6 +22,7 @@ let program :=
 let code :=
 | LPAREN; code_list = list(code); RPAREN; { Form code_list }
 | x = INT_LIT; { IntLit x }
+| x = BOOL_LIT; { BoolLit x }
 | symbol = Symbol; { Symbol symbol }
 
 let code_eof := ~ = code; EOF; <>

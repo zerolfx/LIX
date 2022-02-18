@@ -19,8 +19,9 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Application (f, arg0 :: args) ->
   desugar_ast (Ast.Application (Ast.Application (f, [arg0]), args))
 
-| Ast.Variable "+" -> Variable "__builtin_add2"
-| Ast.Variable v -> Variable v
+| Ast.Variable v -> (match List.find_opt (fun Builtin_constants.{ name; _ } -> String.equal name v ) Builtin_constants.builtins with
+  | None -> Variable v
+  | Some ({ internal_name; _}) -> Variable internal_name)
 
 | Ast.Lambda ([], _) -> raise (Failure "lambda must has at least one argument")
 | Ast.Lambda ([a], e) -> Lambda (a, desugar_ast e)
