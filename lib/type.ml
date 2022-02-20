@@ -3,10 +3,7 @@ module S = Syntax
 type t =
 | IntT
 | BoolT
-| SumT of t * t
-| ProductT of t * t
 | FunctionT of t * t
-| VarT of t
 | DummyT
 [@@deriving show, eq, ord]
 
