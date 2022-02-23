@@ -1,6 +1,6 @@
 open Compiler_common
 open Common
-
+module A = Last
 
 let the_execution_engine =
   ( match Llvm_executionengine.initialize () with
@@ -24,17 +24,25 @@ let init_jit () : unit =
 
   Llvm_executionengine.remove_module the_module the_execution_engine
 
+
+let gen_type (t : Type.t) : L.lltype = match t with
+| Type.BoolT -> bool_type
+| Type.IntT -> int_type
+| _ -> void_type
+
+
 let codegen_repl (a: A.last) : Type.t * Type.primitive option = 
   Llvm_executionengine.add_module the_module the_execution_engine;
 
   let repl_fn = gen_name "repl" in
 
   let ta = Last.get_type a in
-  let repl_function = L.declare_function repl_fn (L.function_type (gen_type ta) [||]) the_module in
+  let llvm_ta = gen_type ta in
+  let repl_function = L.declare_function repl_fn (L.function_type llvm_ta [||]) the_module in
   let bb = L.append_block context "entry" repl_function in
   L.position_at_end bb builder;
 
-  L.build_ret (Compiler.codegen M.empty a) builder |> ignore;
+  L.build_ret (load_void_ptr llvm_ta (Compiler.codegen M.empty a) builder) builder |> ignore;
   verify_and_optimize repl_function;
 
   let result = match ta with

@@ -1,9 +1,7 @@
 open Common
 open Compiler_common
+module A = Last
 
-
-let build_malloc_ptr (t : L.lltype) : L.llvalue = 
-  L.build_malloc t "malloc" builder
 
 
 let build_struct_field_ptr ?(name : string = "struct_field_ptr") (ptr : L.llvalue) (field : int) : L.llvalue = 
@@ -11,18 +9,13 @@ let build_struct_field_ptr ?(name : string = "struct_field_ptr") (ptr : L.llvalu
 
 
 let codegen_primitive = function
-| Type.Int i -> L.const_int int_type i
-| Type.Bool b -> L.const_int bool_type (if b then 1 else 0)
+| Type.Int i -> store_void_ptr (L.const_int int_type i) builder
+| Type.Bool b -> store_void_ptr (L.const_int bool_type (if b then 1 else 0)) builder
 
 
-
-let gen_llvm_function_type (arg : Type.t) (body : Type.t) : L.lltype =
-  L.function_type (gen_type body) [| gen_type arg ; void_ptr_type |]
-
-let gen_env_type (vars : typed_var list) : L.lltype =
-  L.struct_type context (List.map (Core.Fn.compose gen_type type_of_var) vars |> Array.of_list)
+let gen_env_type (n : int) : L.lltype =
+  L.struct_type context (List.init n (fun _ -> void_ptr_type) |> Array.of_list)
   
-
 
 let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a with
 | A.Primitive p -> codegen_primitive p
@@ -38,15 +31,15 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
     | None -> L.build_load (L.lookup_global name the_module |> Option.get) "load_global" builder)
 
 | A.Define (name, ast) ->
-  let global = declare_global name (a |> Last.get_type |> gen_type) in
+  let global = declare_global name void_ptr_type in
   L.build_store (codegen var_table ast) global builder |> ignore;
   L.build_load global "load_global" builder
 
 | A.Lambda (name, free_vars, arg, body) -> 
-  let env_type = gen_env_type free_vars in
+  let env_type = gen_env_type (List.length free_vars) in
   let env_ptr = build_malloc_ptr env_type in
 
-  let f_llvm_type = gen_llvm_function_type (type_of_var arg) (A.get_type body)  in
+  let f_llvm_type = llvm_function_type in
   let f = L.declare_function name f_llvm_type the_module in
 
   let closure_ptr = build_malloc_ptr closure_struct in
@@ -85,20 +78,17 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   verify_and_optimize f;
   Llvm.PassManager.run_function f the_fpm |> ignore;
   
-  closure_ptr
+  L.build_bitcast closure_ptr void_ptr_type "closure_ptr" builder
 
-| A.Application (_, f, arg) -> (match Last.get_type f with
-  | Type.FunT (arg_type, body_type) ->
-    let closure_ptr = codegen var_table f in
-    let f_void_ptr_ptr = build_struct_field_ptr ~name:"f_ptr_ptr" closure_ptr 0 in
-    let f_void_ptr = L.build_load f_void_ptr_ptr "f_ptr" builder in
-    let env_ptr_ptr = build_struct_field_ptr ~name:"env_ptr" closure_ptr 1 in
-    let env_ptr = L.build_load env_ptr_ptr "env_ptr" builder in
-    let f_llvm_ptr_type = L.pointer_type (gen_llvm_function_type arg_type body_type) in
-    let f_ptr = L.build_bitcast f_void_ptr f_llvm_ptr_type "f_ptr" builder in
-    L.build_call f_ptr [| codegen var_table arg ; env_ptr |] "call" builder
-  | _ -> raise (Failure "invalid function type")
-)
+| A.Application (_, f, arg) -> 
+  let closure_ptr = L.build_bitcast (codegen var_table f) closure_ptr_type "closure_ptr" builder in
+  let f_void_ptr_ptr = build_struct_field_ptr ~name:"f_ptr_ptr" closure_ptr 0 in
+  let f_void_ptr = L.build_load f_void_ptr_ptr "f_ptr" builder in
+  let env_ptr_ptr = build_struct_field_ptr ~name:"env_ptr" closure_ptr 1 in
+  let env_ptr = L.build_load env_ptr_ptr "env_ptr" builder in
+  let f_llvm_ptr_type = L.pointer_type llvm_function_type in
+  let f_ptr = L.build_bitcast f_void_ptr f_llvm_ptr_type "f_ptr" builder in
+  L.build_call f_ptr [| codegen var_table arg ; env_ptr |] "call" builder
 
 | A.If (c, e1, e2) ->
   let c_val = codegen var_table c in
@@ -121,7 +111,7 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   let phi = L.build_phi [(true_val, new_true_bb); (false_val, new_false_bb)] "if_result" builder in
   
   L.position_at_end start_bb builder;
-  L.build_cond_br c_val true_bb false_bb builder |> ignore;
+  L.build_cond_br (L.build_load (L.build_bitcast c_val (L.pointer_type bool_type) "to_bool" builder) "cond" builder) true_bb false_bb builder |> ignore;
   
   L.position_at_end new_true_bb builder;
   L.build_br end_bb builder |> ignore;

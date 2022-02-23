@@ -1,6 +1,4 @@
 module L = Llvm
-module A = Last
-
 
 module M = Map.Make(String)
 
@@ -31,6 +29,21 @@ let void_ptr_type = L.pointer_type void_type
 let closure_struct = L.struct_type context [| void_ptr_type ; void_ptr_type |]
 let closure_ptr_type = L.pointer_type closure_struct
 
+let llvm_function_type : L.lltype = L.function_type void_ptr_type [| void_ptr_type; void_ptr_type |]
+
+
+let build_malloc_ptr (t : L.lltype) : L.llvalue = 
+  L.build_malloc t "malloc" builder
+
+
+let store_void_ptr (v : L.llvalue) = 
+  let ptr = build_malloc_ptr (L.type_of v) in
+  L.build_store v ptr builder |> ignore;
+  L.build_bitcast ptr void_ptr_type "void_ptr"
+
+let load_void_ptr (t : L.lltype) (ptr : L.llvalue) (builder : L.llbuilder) : L.llvalue = 
+  L.build_load (L.build_bitcast ptr (L.pointer_type t) "cast" builder ) "load" builder
+
 
 let llvm_prefix = "__llvm"
 
@@ -38,12 +51,6 @@ let declare_global name ty =
   let global = L.define_global name (L.const_null ty) the_module in
   L.set_linkage L.Linkage.Common global;
   global 
-
-let gen_type = function
-| Type.IntT -> int_type
-| Type.BoolT -> bool_type
-| Type.FunT _ -> closure_ptr_type
-| t -> raise (Failure (Printf.sprintf "unsupported type %s" (Type.show t)))
 
 
 let dump_value v = L.dump_value v; Core.fprintf stderr "\n"; flush stderr

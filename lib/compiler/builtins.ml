@@ -1,5 +1,6 @@
 open Compiler_common
 open Builtin_constants
+module A = Last
 
 
 let rec get_args_count = function
@@ -31,8 +32,8 @@ let build_init_builtins (codegen : A.last -> L.llvalue) : L.llvalue =
   L.position_at_end bb builder;
 
   let gen_builtin name c =
-    let global_closure = declare_global name closure_ptr_type in
-    L.build_store (codegen c) global_closure builder |> ignore in
+    let global_closure = declare_global name void_ptr_type in
+    L.build_store (L.build_bitcast (codegen c) void_ptr_type "global_closure" builder) global_closure builder |> ignore in
 
   List.iter (fun { internal_name; ty; _ } -> 
     gen_builtin internal_name (gen_builtin_ast [] internal_name ty)
