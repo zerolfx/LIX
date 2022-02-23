@@ -11,8 +11,8 @@ let build_struct_field_ptr ?(name : string = "struct_field_ptr") (ptr : L.llvalu
 
 
 let codegen_primitive = function
-| Ast.Int i -> L.const_int int_type i
-| Ast.Bool b -> L.const_int bool_type (if b then 1 else 0)
+| Type.Int i -> L.const_int int_type i
+| Type.Bool b -> L.const_int bool_type (if b then 1 else 0)
 
 
 
@@ -88,7 +88,7 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   closure_ptr
 
 | A.Application (_, f, arg) -> (match Last.get_type f with
-  | Type.FunctionT (arg_type, body_type) ->
+  | Type.FunT (arg_type, body_type) ->
     let closure_ptr = codegen var_table f in
     let f_void_ptr_ptr = build_struct_field_ptr ~name:"f_ptr_ptr" closure_ptr 0 in
     let f_void_ptr = L.build_load f_void_ptr_ptr "f_ptr" builder in

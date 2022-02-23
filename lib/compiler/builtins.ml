@@ -3,14 +3,14 @@ open Builtin_constants
 
 
 let rec get_args_count = function
-| Type.FunctionT (_, ty) -> 1 + get_args_count ty
+| Type.FunT (_, ty) -> 1 + get_args_count ty
 | _ -> 0
 
 
 let gen_builtin_arg_name i = "arg" ^ string_of_int i
 
 let rec gen_builtin_ast (args : Common.typed_var list) (name : string) (ty : Type.t) = match ty with
-| Type.FunctionT (a, e) -> 
+| Type.FunT (a, e) -> 
     let depth = List.length args in
     let arg = (gen_builtin_arg_name depth, a) in
     A.Lambda (name ^ "_" ^ Int.to_string depth, args, arg, gen_builtin_ast (arg::args) name e)

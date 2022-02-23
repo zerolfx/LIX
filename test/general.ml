@@ -16,7 +16,7 @@ let tests = [
   );
   "gcd">::(
     assert_eval_all
-    [Lix.Ast.Int 24; Lix.Ast.Int 12]
+    [Lix.Type.Int 24; Lix.Type.Int 12]
     "
 (def gcd (: (-> Int Int Int) (fn (x y)
   (if (== y 0) 

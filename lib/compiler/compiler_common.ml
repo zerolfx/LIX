@@ -42,7 +42,7 @@ let declare_global name ty =
 let gen_type = function
 | Type.IntT -> int_type
 | Type.BoolT -> bool_type
-| Type.FunctionT _ -> closure_ptr_type
+| Type.FunT _ -> closure_ptr_type
 | t -> raise (Failure (Printf.sprintf "unsupported type %s" (Type.show t)))
 
 

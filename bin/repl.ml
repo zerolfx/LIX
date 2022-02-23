@@ -7,14 +7,16 @@ let process (line: string) =
     Syntax.show_code code |> print_endline;
     let ast = Ast.code_to_ast code in
     Ast.show_ast ast |> print_endline;
-    let hast = ast |> Dast.ast_to_dast |> Hast.dast_to_hast in
-    Hast.show_hast hast  |> print_endline;
-    let last = Last.hast_to_last hast in
+    let dast = ast |> Dast.ast_to_dast in
+    Dast.show_dast dast |> print_endline;
+    let tast = dast |> Tast.dast_to_tast in
+    Tast.show_tast (Type.pp_scheme) tast |> print_endline;
+    let last = tast |> Last.tast_to_last in
     Last.show_last last  |> print_endline;
     let (result_type, result) = Jit.codegen_repl last in
     Printf.printf "Result type: %s\n" (Type.show result_type);
     match result with
-    | Some v -> Printf.printf "Eval to: %s\n" (Ast.show_primitive v)
+    | Some v -> Printf.printf "Eval to: %s\n" (Type.show_primitive v)
     | _ -> ()
   with
   | Parser.Error ->

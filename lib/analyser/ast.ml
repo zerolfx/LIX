@@ -1,24 +1,24 @@
 module S = Syntax
 
-type var = string [@@deriving show]
-
-type primitive =
-| Int of int
-| Bool of bool
-[@@deriving show, eq]
-
-
 type ast =
-| Lambda of var list * ast
+| Lambda of Type.var list * ast
 | TypeAnnotation of Type.t * ast
-| Primitive of primitive
+| Primitive of Type.primitive
 | Application of ast * ast list
-| Variable of var
-| Define of var * ast
+| Variable of Type.var
+| Define of Type.var * ast
 | If of ast * ast * ast
 [@@deriving show]
 
-exception Err of string
+let rec parse_type (c: S.code): Type.t = match c with
+| Symbol "Int" -> IntT
+| Symbol "Bool" ->  BoolT
+| Form (Symbol "->" :: cs) -> parse_function_type cs
+| _ -> raise (Failure "parse_type")
+and parse_function_type (cs: S.code list) = match cs with
+| [c1; c2] -> FunT (parse_type c1, parse_type c2)
+| c1 :: cs -> FunT (parse_type c1, parse_function_type cs)
+| _ -> raise (Failure "malformed function type")
 
 let parse_arg = function
 | S.Symbol s -> s
@@ -28,13 +28,13 @@ let rec gen_ast (c: S.code): ast = match c with
 | S.IntLit i -> Primitive (Int i)
 | S.BoolLit b -> Primitive (Bool b)
 | S.Symbol s -> Variable s
-| S.Form [S.Symbol ":"; t; e] -> TypeAnnotation (Type.parse_type t, gen_ast e)
+| S.Form [S.Symbol ":"; t; e] -> TypeAnnotation (parse_type t, gen_ast e)
 | S.Form [S.Symbol "def"; S.Symbol name; e] -> Define (name, (gen_ast e))
 | S.Form [S.Symbol "fn"; S.Form args; e] -> Lambda (List.map parse_arg args, gen_ast e)
 | S.Form [S.Symbol "fn"; S.Symbol arg; e] -> Lambda ([arg], gen_ast e)
 | S.Form [S.Symbol "if"; e1; e2; e3] -> If (gen_ast e1, gen_ast e2, gen_ast e3)
 | S.Form (f :: es) -> Application (gen_ast f, List.map gen_ast es)
-| _ -> raise (Err "not supported")
+| S.Form [] -> raise (Failure "empty form")
 
 
 let code_to_ast (c: S.code): ast = gen_ast c

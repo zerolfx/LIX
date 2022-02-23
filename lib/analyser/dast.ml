@@ -3,7 +3,7 @@ type var = string [@@deriving show]
 type dast =
 | Lambda of var * dast
 | TypeAnnotation of Type.t * dast
-| Primitive of Ast.primitive
+| Primitive of Type.primitive
 | Application of dast * dast
 | Variable of var
 | Define of var * dast

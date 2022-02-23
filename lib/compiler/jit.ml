@@ -24,7 +24,7 @@ let init_jit () : unit =
 
   Llvm_executionengine.remove_module the_module the_execution_engine
 
-let codegen_repl (a: A.last) : Type.t * Ast.primitive option = 
+let codegen_repl (a: A.last) : Type.t * Type.primitive option = 
   Llvm_executionengine.add_module the_module the_execution_engine;
 
   let repl_fn = gen_name "repl" in
@@ -42,12 +42,12 @@ let codegen_repl (a: A.last) : Type.t * Ast.primitive option =
     let repl_fp = Llvm_executionengine.get_function_address repl_fn 
       (Foreign.funptr Ctypes.(void @-> returning int)) 
       the_execution_engine in
-    Some (Ast.Int (repl_fp ()))
+    Some (Type.Int (repl_fp ()))
   | Type.BoolT -> 
     let repl_fp = Llvm_executionengine.get_function_address repl_fn 
       (Foreign.funptr Ctypes.(void @-> returning bool)) 
       the_execution_engine in
-    Some (Ast.Bool (repl_fp ()))
+    Some (Type.Bool (repl_fp ()))
   | _ -> 
     let repl_fp = Llvm_executionengine.get_function_address repl_fn 
       (Foreign.funptr Ctypes.(void @-> returning void)) 
