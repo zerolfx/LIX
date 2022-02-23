@@ -12,16 +12,4 @@ let tests = [
     3
     "((fn (f x) (f x)) (+ 1) 2)"
   );
-  "apply">::(
-    assert_eval_int
-    3
-    "(def apply (fn (f x) (f x)))
-     (apply (+ 1) 2)"
-  );
-  "id">::(
-    assert_eval_int
-    3
-    "(def id (fn (x) x))
-     (id 3)"
-  );
 ]

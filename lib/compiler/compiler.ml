@@ -1,4 +1,3 @@
-open Common
 open Compiler_common
 module A = Last
 
@@ -20,7 +19,7 @@ let gen_env_type (n : int) : L.lltype =
 let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a with
 | A.Primitive p -> codegen_primitive p
 
-| A.Var (name, _) -> 
+| A.Variable name -> 
   if String.starts_with ~prefix:"__llvm" name then
     Builtins.codegen_builtin var_table name
   else if String.starts_with ~prefix:"__builtin" name then
@@ -47,7 +46,7 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   
   List.mapi (fun i v ->
     L.build_store 
-      (codegen var_table (A.Var v)) 
+      (codegen var_table (A.Variable v)) 
       (build_struct_field_ptr env_ptr i) builder) free_vars |> ignore;
 
   L.build_store 
@@ -67,9 +66,9 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   let f_env_ptr = L.build_bitcast (L.param f 1) (L.pointer_type env_type) "f_env_ptr" builder in
 
   let table = 
-    (name_of_var arg, L.param f 0) ::
-    List.mapi (fun i v -> 
-      (name_of_var v, L.build_load (build_struct_field_ptr f_env_ptr i) "env_arg"  builder)
+    (arg, L.param f 0) ::
+    List.mapi (fun i n -> 
+      (n, L.build_load (build_struct_field_ptr f_env_ptr i) "env_arg"  builder)
     ) free_vars |>  List.to_seq |> M.of_seq  in
 
   L.build_ret (codegen table body) builder |> ignore;
@@ -80,7 +79,7 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
   
   L.build_bitcast closure_ptr void_ptr_type "closure_ptr" builder
 
-| A.Application (_, f, arg) -> 
+| A.Application (f, arg) -> 
   let closure_ptr = L.build_bitcast (codegen var_table f) closure_ptr_type "closure_ptr" builder in
   let f_void_ptr_ptr = build_struct_field_ptr ~name:"f_ptr_ptr" closure_ptr 0 in
   let f_void_ptr = L.build_load f_void_ptr_ptr "f_ptr" builder in

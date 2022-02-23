@@ -25,7 +25,17 @@ let tests = [
 (gcd 72 192)
 (gcd 24 36)
     "
+  );
+  "gcd2">::(
+    assert_eval_all
+    [Lix.Type.Int 24; Lix.Type.Int 12]
+    "
+(def gcd (fn (x y)
+  (if (== y 0) 
+      x
+      (gcd y (% x y)))))
+(gcd 72 192)
+(gcd 24 36)
+    "
   )
-  
-
 ]

@@ -8,14 +8,14 @@ let rec get_args_count = function
 | _ -> 0
 
 
-let gen_builtin_arg_name i = "arg" ^ string_of_int i
+let gen_builtin_arg_var i = "arg" ^ string_of_int i
 
-let rec gen_builtin_ast (args : Common.typed_var list) (name : string) (ty : Type.t) = match ty with
-| Type.FunT (a, e) -> 
+let rec gen_builtin_ast (args : Type.var list) (name : string) (ty : Type.t) = match ty with
+| Type.FunT (_, te) -> 
     let depth = List.length args in
-    let arg = (gen_builtin_arg_name depth, a) in
-    A.Lambda (name ^ "_" ^ Int.to_string depth, args, arg, gen_builtin_ast (arg::args) name e)
-| IntT | BoolT -> A.Var (llvm_prefix ^ name, ty)
+    let arg = gen_builtin_arg_var depth in
+    A.Lambda (name ^ "_" ^ Int.to_string depth, args, arg, gen_builtin_ast (arg::args) name te)
+| IntT | BoolT -> A.Variable (llvm_prefix ^ name)
 | _ -> assert false
 
 
@@ -23,7 +23,7 @@ let rec gen_builtin_ast (args : Common.typed_var list) (name : string) (ty : Typ
 let codegen_builtin (var_table : L.llvalue M.t) (name : string) : L.llvalue =
   let i_name = Str.string_after name (String.length llvm_prefix) in
   let b = List.find (fun { internal_name; _ } -> String.equal internal_name i_name ) builtins in
-  b.gen (List.init (get_args_count b.ty) (fun i -> M.find (gen_builtin_arg_name i) var_table)) builder
+  b.gen (List.init (get_args_count b.ty) (fun i -> M.find (gen_builtin_arg_var i) var_table)) builder
 
 
 let build_init_builtins (codegen : A.last -> L.llvalue) : L.llvalue = 

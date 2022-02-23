@@ -9,12 +9,12 @@ let process (line: string) =
     Ast.show_ast ast |> print_endline;
     let dast = ast |> Dast.ast_to_dast in
     Dast.show_dast dast |> print_endline;
-    let tast = dast |> Tast.dast_to_tast in
+    let tast, sc = dast |> Tast.dast_to_tast in
     Tast.show_tast (Type.pp_scheme) tast |> print_endline;
     let last = tast |> Last.tast_to_last in
     Last.show_last last  |> print_endline;
-    let (result_type, result) = Jit.codegen_repl last in
-    Printf.printf "Result type: %s\n" (Type.show result_type);
+    let (result_type, result) = Jit.codegen_repl (last, sc) in
+    Printf.printf "Result type: %s\n" (Type.show_scheme result_type);
     match result with
     | Some v -> Printf.printf "Eval to: %s\n" (Type.show_primitive v)
     | _ -> ()

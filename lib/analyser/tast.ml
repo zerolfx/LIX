@@ -56,14 +56,25 @@ type 't tast =
 | Lambda of 't * Type.var * 't tast
 | Application of 't tast * 't tast
 | If of 't tast * 't tast * 't tast
+| Define of string * 't tast
 [@@deriving show]
 
 
 type env = S.t
 
 let globals = List.map 
-  (fun Builtin_constants.{ internal_name; ty; _ } -> (internal_name, ty) ) 
+  (fun Builtin_constants.{ internal_name; ty; _ } -> (internal_name, Type.Scheme ([], ty)) ) 
   Builtin_constants.builtins  |> List.to_seq |> M.of_seq |> ref
+
+
+
+let generalize (bound_type_vars : S.t) (t : Type.t) : Type.scheme =
+  Scheme (S.diff (Type.free_type_vars t) bound_type_vars |> S.to_seq |> List.of_seq, t)
+
+let instantiate (sc : Type.scheme) : Type.t = match sc with
+| Scheme (names, t) ->
+  let sub = List.map (fun n -> (n, Type.VarT (Common.gen_name n))) names |> List.to_seq |> M.of_seq in
+  sub_type sub t
 
 let rec infer (env : env) (expr : Dast.dast) : 
   (type_assumption list * type_constraint list * Type.t * Type.t tast) = match expr with
@@ -74,7 +85,7 @@ let rec infer (env : env) (expr : Dast.dast) :
   (sl, SameType (t, t') :: cl, t', e')
 | Dast.Variable name ->
   if String.starts_with ~prefix:"__builtin" name 
-  then ([], [], M.find name !globals, Variable name)
+  then ([], [], instantiate @@ M.find name !globals, Variable name)
   else
     let v = Common.gen_name name in
     let tv = Type.VarT v in
@@ -109,7 +120,14 @@ let rec infer (env : env) (expr : Dast.dast) :
     t2,
     If (e1', e2', e3')
   )
-| Dast.Define _ -> raise @@ Failure "Not implemented"
+| Dast.Define (name, e) ->
+  let (sl, cl, t, e') = infer env e in
+  (
+    remove_assumption name sl,
+    cl @ List.map (fun t -> SameType (t, t)) (find_assumptions name sl),
+    t,
+    Define (name, e')
+  )
 
 
 
@@ -123,8 +141,6 @@ let rec solve (cl : type_constraint list) : subst = match cl with
 
 
 
-let generalize (bound_type_vars : S.t) (t : Type.t) : Type.scheme =
-  Scheme (S.diff (Type.free_type_vars t) bound_type_vars |> S.to_seq |> List.of_seq, t)
 
 
 let rec sub_expr (sub : subst) (bound_type_vars : S.t) (e : Type.t tast) : Type.scheme tast = 
@@ -138,16 +154,27 @@ let rec sub_expr (sub : subst) (bound_type_vars : S.t) (e : Type.t tast) : Type.
   let e' = sub_expr sub (S.union bound_type_vars (S.of_list names)) e in
   Lambda (sc, name, e')
 | If (e1, e2, e3) -> If (sub_expr' e1, sub_expr' e2, sub_expr' e3)
+| Define (name, e) -> Define (name, sub_expr' e)
 
 
-let dast_to_tast (d: Dast.dast) : Type.scheme tast =
-  let (sl, cl, _, e) = infer S.empty d in
-  assert (List.length sl = 0);
+
+let dast_to_tast (d: Dast.dast) : Type.scheme tast * Type.scheme =
+  let (sl, cl, ty, e) = infer S.empty d in
+  (* sl |> List.map show_type_assumption |> String.concat "   " |> print_endline; *)
+  let ss = S.of_list @@ List.map fst sl in
+  assert (S.is_empty @@ S.diff ss (!globals |> M.bindings |> List.map fst |> S.of_list));
+  let cl' = sl |> List.map (fun (name, tv) -> SameType (tv, instantiate @@ M.find name !globals)) in
+
 
   (* cl |> List.map show_type_constraint |> String.concat "\n" |> print_endline; *)
 
-  let sub = solve cl in
+  let sub = solve (cl @ cl') in
+  let result = sub_expr sub S.empty e in
+  let result_scheme = generalize S.empty (sub_type sub ty) in
 
+  (match result with
+  | Define (name, _) -> globals := M.add name result_scheme !globals
+  | _ -> ());
 
   (* sub 
     |> M.to_seq 
@@ -155,4 +182,4 @@ let dast_to_tast (d: Dast.dast) : Type.scheme tast =
     |> List.map (fun (k, v) -> k ^ " = " ^ Type.show v)
     |> String.concat "\n" |> print_endline; *)
 
-  sub_expr sub S.empty e
+  result, result_scheme

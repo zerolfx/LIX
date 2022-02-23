@@ -13,8 +13,8 @@ let assert_eval_result i s = assert_equal (code_to_int s) i
 let () =
   Lix.Jit.init_jit ();
   "lambda">:::Lambda.tests |> run_test_tt_main;
-  (* "define">:::Define.tests |> run_test_tt_main; *)
+  "define">:::Define.tests |> run_test_tt_main;
   "bool">:::Bool.tests |> run_test_tt_main;
   "if">:::If.tests |> run_test_tt_main;
-  (* "general">:::General.tests |> run_test_tt_main; *)
+  "general">:::General.tests |> run_test_tt_main;
   "infer">:::Infer.tests |> run_test_tt_main;
