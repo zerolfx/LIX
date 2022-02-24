@@ -6,7 +6,6 @@ let context = L.global_context ()
 let the_module = L.create_module context "LIX"
 
 
-
 let the_fpm = 
   let fpm = Llvm.PassManager.create_function the_module in
   Llvm_scalar_opts.add_memory_to_register_promotion fpm;
@@ -26,10 +25,11 @@ let bool_type = L.i1_type context
 let void_type = L.void_type context
 let void_ptr_type = L.pointer_type void_type
 (* closure { void *function; struct env *env; } *)
-let closure_struct = L.struct_type context [| void_ptr_type ; void_ptr_type |]
-let closure_ptr_type = L.pointer_type closure_struct
 
-let llvm_function_type : L.lltype = L.function_type void_ptr_type [| void_ptr_type; void_ptr_type |]
+let function_type = L.function_type void_ptr_type [| void_ptr_type; void_ptr_type |]
+let function_ptr_type = L.pointer_type function_type
+let closure_struct = L.struct_type context [| function_ptr_type ; void_ptr_type |]
+let closure_ptr_type = L.pointer_type closure_struct
 
 
 let build_malloc_ptr (t : L.lltype) : L.llvalue = 
@@ -42,7 +42,7 @@ let store_void_ptr (v : L.llvalue) =
   L.build_bitcast ptr void_ptr_type "void_ptr"
 
 let load_void_ptr (t : L.lltype) (ptr : L.llvalue) (builder : L.llbuilder) : L.llvalue = 
-  L.build_load (L.build_bitcast ptr (L.pointer_type t) "cast" builder ) "load" builder
+  L.build_load (L.build_bitcast ptr (L.pointer_type t) "cast" builder) "load" builder
 
 
 let llvm_prefix = "__llvm"

@@ -3,26 +3,27 @@ open Common
 module A = Last
 
 let the_execution_engine =
-  ( match Llvm_executionengine.initialize () with
-  | true -> ()
-  | false -> raise (Failure "failed to initialize execution engine"));
+  assert (Llvm_executionengine.initialize());
   Llvm_executionengine.create the_module
 
 
-let init_jit () : unit =
-
+let run f = 
   Llvm_executionengine.add_module the_module the_execution_engine;
+  let ret = f () in
+  Llvm_executionengine.remove_module the_module the_execution_engine;
+  ret
 
+
+let get_function_ptr f t = Llvm_executionengine.get_function_address (L.value_name f) t the_execution_engine
+
+let init_jit () : unit = run @@ fun _ ->
   let init = Builtins.build_init_builtins (Compiler.codegen M.empty) in
 
   verify_and_optimize init;
 
-  let init_fp = Llvm_executionengine.get_function_address "init_builtins" 
-    (Foreign.funptr Ctypes.(void @-> returning void)) 
-    the_execution_engine in
-  init_fp ();
-
-  Llvm_executionengine.remove_module the_module the_execution_engine
+  let init_fp = get_function_ptr init
+    (Foreign.funptr Ctypes.(void @-> returning void)) in
+  init_fp ()
 
 
 let gen_type (sc : Type.scheme) : L.lltype = match sc with
@@ -31,9 +32,7 @@ let gen_type (sc : Type.scheme) : L.lltype = match sc with
 | _ -> void_type
 
 
-let codegen_repl (a, sa) : Type.scheme * Type.primitive option = 
-  Llvm_executionengine.add_module the_module the_execution_engine;
-
+let codegen_repl (a, sa) : Type.scheme * Type.primitive option = run @@ fun _ ->
   let repl_fn = gen_name "repl" in
 
   let llvm_ta = gen_type sa in
@@ -52,23 +51,18 @@ let codegen_repl (a, sa) : Type.scheme * Type.primitive option =
 
   let result =
     if llvm_ta = int_type then
-      let repl_fp = Llvm_executionengine.get_function_address repl_fn 
-        (Foreign.funptr Ctypes.(void @-> returning int)) 
-        the_execution_engine in
+      let repl_fp = get_function_ptr repl_function 
+        (Foreign.funptr Ctypes.(void @-> returning int)) in
       Some (Type.Int (repl_fp ()))
     else if llvm_ta = bool_type then
-      let repl_fp = Llvm_executionengine.get_function_address repl_fn 
-        (Foreign.funptr Ctypes.(void @-> returning bool)) 
-        the_execution_engine in
+      let repl_fp = get_function_ptr repl_function 
+        (Foreign.funptr Ctypes.(void @-> returning bool)) in
       Some (Type.Bool (repl_fp ()))
     else
-      let repl_fp = Llvm_executionengine.get_function_address repl_fn 
-        (Foreign.funptr Ctypes.(void @-> returning void)) 
-        the_execution_engine in
+      let repl_fp = get_function_ptr repl_function 
+        (Foreign.funptr Ctypes.(void @-> returning void)) in
       repl_fp ();
       None
   in
-
-  Llvm_executionengine.remove_module the_module the_execution_engine;
-
+  
   sa, result

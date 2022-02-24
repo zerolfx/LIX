@@ -19,7 +19,6 @@ let rec gen_builtin_ast (args : Type.var list) (name : string) (ty : Type.t) = m
 | _ -> assert false
 
 
-
 let codegen_builtin (var_table : L.llvalue M.t) (name : string) : L.llvalue =
   let i_name = Str.string_after name (String.length llvm_prefix) in
   let b = List.find (fun { internal_name; _ } -> String.equal internal_name i_name ) builtins in
