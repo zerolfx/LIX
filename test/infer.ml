@@ -19,9 +19,19 @@ let tests = [
      (apply (+ 1) 2)"
   );
   "id">::(
-    assert_eval_int
-    3
+    assert_eval_all
+    [Lix.Type.Int 3; Lix.Type.Bool false]
     "(def id (fn (x) x))
-     (id 3)"
+     (id 3)
+     (id false)"
   );
+  "compose">::(
+    assert_eval_int
+    5
+    "(def compose (fn (f g) (fn (x) (f (g x)))))
+     (compose (+ 2) (* 3) 1)"
+  );
+  "infinite type">::(fun _ -> 
+    assert_raises Lix.Tast.InfiniteType 
+    (fun _ -> eval "(def f (fn x (x x)))"));
 ]

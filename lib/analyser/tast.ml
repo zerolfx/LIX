@@ -32,11 +32,12 @@ let sub_union (s1 : subst) (s2 : subst) : subst =
 
 
 exception TypeMismatch of Type.t * Type.t
+exception InfiniteType
 
 
 let rec unify (t1 : Type.t) (t2 : Type.t) : subst = 
   let bind n t =
-    if S.mem n (Type.free_type_vars t) then raise (Failure "Infinite type")
+    if S.mem n (Type.free_type_vars t) then raise InfiniteType
     else M.singleton n t in
   match (t1, t2) with
 | _ when t1 = t2 -> M.empty
@@ -62,6 +63,8 @@ type 't tast =
 
 type env = S.t
 
+let gen_tvar n = Type.VarT (Common.gen_name n)
+
 let globals = List.map 
   (fun Builtin_constants.{ internal_name; ty; _ } -> (internal_name, Type.Scheme ([], ty)) ) 
   Builtin_constants.builtins  |> List.to_seq |> M.of_seq |> ref
@@ -73,8 +76,10 @@ let generalize (bound_type_vars : S.t) (t : Type.t) : Type.scheme =
 
 let instantiate (sc : Type.scheme) : Type.t = match sc with
 | Scheme (names, t) ->
-  let sub = List.map (fun n -> (n, Type.VarT (Common.gen_name n))) names |> List.to_seq |> M.of_seq in
+  let sub = List.map (fun n -> (n, gen_tvar n)) names |> List.to_seq |> M.of_seq in
   sub_type sub t
+
+
 
 let rec infer (env : env) (expr : Dast.dast) : 
   (type_assumption list * type_constraint list * Type.t * Type.t tast) = match expr with
@@ -87,13 +92,12 @@ let rec infer (env : env) (expr : Dast.dast) :
   if String.starts_with ~prefix:"__builtin" name 
   then ([], [], instantiate @@ M.find name !globals, Variable name)
   else
-    let v = Common.gen_name name in
-    let tv = Type.VarT v in
+    let tv = gen_tvar name in
     ([(name, tv)], [], tv, Variable name)
 | Dast.Application (e1, e2) ->
   let (sl1, cl1, t1, e1') = infer env e1 in
   let (sl2, cl2, t2, e2') = infer env e2 in
-  let tv = Type.VarT (Common.gen_name "ret") in
+  let tv = gen_tvar "ret" in
   (
     sl1 @ sl2,
     SameType (t1, FunT (t2, tv)) :: cl1 @ cl2,
@@ -101,8 +105,7 @@ let rec infer (env : env) (expr : Dast.dast) :
     Application (e1', e2')
   )
 | Dast.Lambda (name, e) ->
-  let a = Common.gen_name (name ^ "_arg") in
-  let ta = Type.VarT a in
+  let ta = gen_tvar name in
   let (sl, cl, te, e') = infer env e in
   (
     remove_assumption name sl, 

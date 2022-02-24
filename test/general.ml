@@ -37,5 +37,11 @@ let tests = [
 (gcd 72 192)
 (gcd 24 36)
     "
+  );
+  "factorial">::(
+    assert_eval_int
+    120
+    "(def fact (fn (n) (if (== n 0) 1 (* n (fact (- n 1))))))
+     (fact 5)"
   )
 ]
