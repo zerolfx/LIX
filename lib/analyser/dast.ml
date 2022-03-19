@@ -1,12 +1,10 @@
-type var = string [@@deriving show]
-
 type dast =
-| Lambda of var * dast
+| Lambda of Type.var * dast
 | TypeAnnotation of Type.t * dast
 | Primitive of Type.primitive
 | Application of dast * dast
-| Variable of var
-| Define of var * dast
+| Variable of Type.var
+| Define of Type.var * dast
 | If of dast * dast * dast
 [@@deriving show]
 

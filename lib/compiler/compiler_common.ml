@@ -6,6 +6,7 @@ let context = L.global_context ()
 let the_module = L.create_module context "LIX"
 
 
+(* optimization options *)
 let the_fpm = 
   let fpm = Llvm.PassManager.create_function the_module in
   Llvm_scalar_opts.add_memory_to_register_promotion fpm;
@@ -24,10 +25,12 @@ let int_type = L.i64_type context
 let bool_type = L.i1_type context
 let void_type = L.void_type context
 let void_ptr_type = L.pointer_type void_type
-(* closure { void *function; struct env *env; } *)
 
+(* void *function(void *param, void *env) *)
 let function_type = L.function_type void_ptr_type [| void_ptr_type; void_ptr_type |]
 let function_ptr_type = L.pointer_type function_type
+
+(* closure { void *function; void *env; } *)
 let closure_struct = L.struct_type context [| function_ptr_type ; void_ptr_type |]
 let closure_ptr_type = L.pointer_type closure_struct
 
