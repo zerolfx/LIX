@@ -9,5 +9,11 @@ dune build
 run REPL:
 
 ```text
-dune exec repl
+LD_LIBRARY_PATH=_build/default/stubs dune exec repl
+```
+
+run tests:
+
+```text
+LD_LIBRARY_PATH=_build/default/stubs dune exec test
 ```
