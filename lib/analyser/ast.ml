@@ -8,6 +8,7 @@ type ast =
 | Variable of Type.var
 | Define of Type.var * ast
 | If of ast * ast * ast
+| Let of ast * (Type.var * ast) list (* let *)
 [@@deriving show]
 
 let rec parse_type (c: S.code): Type.t = match c with
@@ -33,6 +34,11 @@ let rec gen_ast (c: S.code): ast = match c with
 | S.Form [S.Symbol "fn"; S.Form args; e] -> Lambda (List.map parse_arg args, gen_ast e)
 | S.Form [S.Symbol "fn"; S.Symbol arg; e] -> Lambda ([arg], gen_ast e)
 | S.Form [S.Symbol "if"; e1; e2; e3] -> If (gen_ast e1, gen_ast e2, gen_ast e3)
+| S.Form [S.Symbol "let"; S.Form let_args; body] -> 
+  let parse_let_args = (function 
+  | S.Form [S.Symbol name; e] -> (name, gen_ast e)
+  | _ -> raise (Failure "parse_let_args")) in
+  Let (gen_ast body, List.map parse_let_args let_args) (* let *)
 | S.Form (f :: es) -> Application (gen_ast f, List.map gen_ast es)
 | S.Form [] -> raise (Failure "empty form")
 

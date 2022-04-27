@@ -26,6 +26,14 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Lambda ([a], e) -> Lambda (a, desugar_ast e)
 | Ast.Lambda (a0 :: args, e) -> desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
 
+| Ast.Let (body, []) -> desugar_ast body
+| Ast.Let (body, let_args) ->
+  let fold_args_to_dast (prev_args : dast list) ((name : Type.var), (ast : Ast.ast)) =
+    (let arg_dast = Application (desugar_ast ast, prev_args) in
+    prev_args@[arg_dast], arg_dast) in
+  let dast_tuple_list = List.fold_left_map fold_args_to_dast [] let_args in (* list(list(dast)*dast) *)
+  Application (desugar_ast body, List.map (fun (_, arg) -> arg) dast_tuple_list)
+
 | Ast.Define (v, e) -> Define (v, desugar_ast e)
 | Ast.If (c, e1, e2) -> If (desugar_ast c, desugar_ast e1, desugar_ast e2)
 
