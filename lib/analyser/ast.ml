@@ -38,7 +38,7 @@ let rec gen_ast (c: S.code): ast = match c with
   let parse_let_args = (function 
   | S.Form [S.Symbol name; e] -> (name, gen_ast e)
   | _ -> raise (Failure "parse_let_args")) in
-  Let (gen_ast body, List.map parse_let_args let_args) (* let *)
+  Let (gen_ast body, List.map parse_let_args (List.rev let_args)) (* let *)
 | S.Form (f :: es) -> Application (gen_ast f, List.map gen_ast es)
 | S.Form [] -> raise (Failure "empty form")
 
