@@ -1,6 +1,7 @@
 open Compiler_common
 module A = Last
 
+exception RedefinedGlobalVariable
 
 let build_struct_field_ptr ?(name : string = "struct_field_ptr") (ptr : L.llvalue) (field : int) : L.llvalue = 
   L.build_struct_gep ptr field name builder
@@ -33,7 +34,7 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
 
 | A.Define (name, ast) ->
   (match L.lookup_global name the_module with
-  | Some _ -> raise (Failure ("Variable " ^ name ^ " cannot be redefined"))
+  | Some _ -> raise RedefinedGlobalVariable
   | None -> let global = declare_global name void_ptr_type in
   L.build_store (codegen var_table ast) global builder |> ignore;
   L.build_load global "load_global" builder)

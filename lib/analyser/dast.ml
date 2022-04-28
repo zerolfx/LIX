@@ -10,6 +10,8 @@ type dast =
 
 module S = Set.Make(String)
 
+exception DuplicatedArgNames
+
 let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Primitive p -> Primitive p
 | Ast.TypeAnnotation (t, e) -> TypeAnnotation (t, desugar_ast e)
@@ -31,7 +33,7 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
   | name :: names -> let subset = args_to_set names in
     (match S.find_opt name subset with 
     | None -> S.add name subset
-    | Some _ -> raise (Failure "duplicated argument name"))) in
+    | Some _ -> raise DuplicatedArgNames)) in
   let _ = args_to_set (a0 :: args) in
   desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
 
