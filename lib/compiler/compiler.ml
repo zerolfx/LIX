@@ -32,9 +32,11 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
     | None -> L.build_load (L.lookup_global name the_module |> Option.get) "load_global" builder)
 
 | A.Define (name, ast) ->
-  let global = declare_global name void_ptr_type in
+  (match L.lookup_global name the_module with
+  | Some _ -> raise (Failure ("Variable " ^ name ^ " cannot be redefined"))
+  | None -> let global = declare_global name void_ptr_type in
   L.build_store (codegen var_table ast) global builder |> ignore;
-  L.build_load global "load_global" builder
+  L.build_load global "load_global" builder)
 
 | A.Lambda (name, free_vars, arg, body) -> 
   let env_type = gen_env_type (List.length free_vars) in
