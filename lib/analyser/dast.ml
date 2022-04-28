@@ -26,17 +26,9 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Lambda ([a], e) -> Lambda (a, desugar_ast e)
 | Ast.Lambda (a0 :: args, e) -> desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
 
-| Ast.Let (body, let_args) -> 
-  let rec get_args_ast = (function
-  | [] -> []
-  | [arg] -> [snd arg]
-  | (_, ast) :: args -> let l = Ast.Lambda(List.map fst args, ast) in
-    let args_ast = get_args_ast args in
-    Ast.Application(l, args_ast) :: args_ast) in
-  let f = (match let_args with 
-  | [] -> body
-  | _ -> Ast.Lambda(List.map fst let_args, body)) in 
-  desugar_ast (Ast.Application(f, get_args_ast let_args))
+| Ast.Let (body, []) -> desugar_ast body
+| Ast.Let (body, (name, e) :: bindings) ->
+  Application (Lambda (name, desugar_ast (Ast.Let (body, bindings))), desugar_ast e)
 
 | Ast.Define (v, e) -> Define (v, desugar_ast e)
 | Ast.If (c, e1, e2) -> If (desugar_ast c, desugar_ast e1, desugar_ast e2)
