@@ -18,3 +18,4 @@ let () =
   "if">:::If.tests |> run_test_tt_main;
   "general">:::General.tests |> run_test_tt_main;
   "infer">:::Infer.tests |> run_test_tt_main;
+  "let">:::Let.tests |> run_test_tt_main;
