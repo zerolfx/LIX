@@ -27,5 +27,15 @@ let tests = [
     assert_eval_int
     5
     "(let ((f (+ 2)) (g (* 3))) (f (g 1)))"
+  );
+  "let lambda">::(
+    assert_eval_int
+    3
+    "(let ((f (fn (x) (+ x 1)))) (f 2))"
+  );
+  "let overwrite">::(
+    assert_eval_int
+    2
+    "(let ((x 1) (x 2)) x)"
   )
 ]
