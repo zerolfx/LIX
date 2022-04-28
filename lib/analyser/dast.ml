@@ -33,7 +33,7 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
   let fold_args (f : dast) (args : dast list) = List.fold_left (fun body arg -> Application(body, arg)) f args in
   let fold_let_args ((arg_names : Type.var list), (args_dast : dast list)) ((name : Type.var), (arg_ast : Ast.ast)) = 
     (let arg_body_dast = desugar_ast (Ast.Lambda(arg_names, arg_ast)) in 
-    arg_names@[name], args_dast@[fold_args arg_body_dast args_dast]) in
+    name :: arg_names, (fold_args arg_body_dast args_dast) :: args_dast) in
   let (all_names, all_args_dast) = List.fold_left fold_let_args ([arg0_name], [arg0_dast]) let_args in
   fold_args (desugar_ast (Ast.Lambda(all_names, body))) all_args_dast
 
