@@ -27,12 +27,15 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Lambda (a0 :: args, e) -> desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
 
 | Ast.Let (body, []) -> desugar_ast body
-| Ast.Let (body, let_args) ->
-  let fold_args_to_dast (prev_args : dast list) ((name : Type.var), (ast : Ast.ast)) =
-    (let arg_dast = Application (desugar_ast ast, prev_args) in
-    prev_args@[arg_dast], arg_dast) in
-  let dast_tuple_list = List.fold_left_map fold_args_to_dast [] let_args in (* list(list(dast)*dast) *)
-  Application (desugar_ast body, List.map (fun (_, arg) -> arg) dast_tuple_list)
+| Ast.Let (body, let_arg0 :: let_args) ->
+  let (arg0_name, arg0_ast) = let_arg0 in 
+  let arg0_dast = desugar_ast arg0_ast in
+  let fold_args (f : dast) (args : dast list) = List.fold_left (fun body arg -> Application(body, arg)) f args in
+  let fold_let_args ((arg_names : Type.var list), (args_dast : dast list)) ((name : Type.var), (arg_ast : Ast.ast)) = 
+    (let arg_body_dast = desugar_ast (Ast.Lambda(arg_names, arg_ast)) in 
+    arg_names@[name], args_dast@[fold_args arg_body_dast args_dast]) in
+  let (all_names, all_args_dast) = List.fold_left fold_let_args ([arg0_name], [arg0_dast]) let_args in
+  fold_args (desugar_ast (Ast.Lambda(all_names, body))) all_args_dast
 
 | Ast.Define (v, e) -> Define (v, desugar_ast e)
 | Ast.If (c, e1, e2) -> If (desugar_ast c, desugar_ast e1, desugar_ast e2)
