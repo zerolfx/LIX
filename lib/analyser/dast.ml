@@ -8,6 +8,7 @@ type dast =
 | If of dast * dast * dast
 [@@deriving show]
 
+exception DuplicatedArgNames of Type.var
 
 let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Primitive p -> Primitive p
@@ -24,7 +25,10 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 
 | Ast.Lambda ([], _) -> raise (Failure "lambda must has at least one argument")
 | Ast.Lambda ([a], e) -> Lambda (a, desugar_ast e)
-| Ast.Lambda (a0 :: args, e) -> desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
+| Ast.Lambda (a0 :: args, e) ->
+  if List.exists (String.equal a0) args then
+    raise (DuplicatedArgNames a0);
+  desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
 
 | Ast.Let (body, []) -> desugar_ast body
 | Ast.Let (body, (name, e) :: bindings) ->

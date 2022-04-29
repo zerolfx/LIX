@@ -19,3 +19,4 @@ let () =
   "general">:::General.tests |> run_test_tt_main;
   "infer">:::Infer.tests |> run_test_tt_main;
   "let">:::Let.tests |> run_test_tt_main;
+  "invalid">:::Invalid.tests |> run_test_tt_main;

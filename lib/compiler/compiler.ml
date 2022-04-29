@@ -1,6 +1,7 @@
 open Compiler_common
 module A = Last
 
+exception RedefinedGlobalVariable of string
 
 let build_struct_field_ptr ?(name : string = "struct_field_ptr") (ptr : L.llvalue) (field : int) : L.llvalue = 
   L.build_struct_gep ptr field name builder
@@ -32,6 +33,8 @@ let rec codegen (var_table : L.llvalue M.t) (a: A.last) : L.llvalue = match a wi
     | None -> L.build_load (L.lookup_global name the_module |> Option.get) "load_global" builder)
 
 | A.Define (name, ast) ->
+  if L.lookup_global name the_module |> Option.is_some then
+    raise (RedefinedGlobalVariable name);
   let global = declare_global name void_ptr_type in
   L.build_store (codegen var_table ast) global builder |> ignore;
   L.build_load global "load_global" builder
