@@ -8,9 +8,7 @@ type dast =
 | If of dast * dast * dast
 [@@deriving show]
 
-module S = Set.Make(String)
-
-exception DuplicatedArgNames
+exception DuplicatedArgNames of Type.var
 
 let rec desugar_ast (a: Ast.ast): dast = match a with
 | Ast.Primitive p -> Primitive p
@@ -27,14 +25,9 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 
 | Ast.Lambda ([], _) -> raise (Failure "lambda must has at least one argument")
 | Ast.Lambda ([a], e) -> Lambda (a, desugar_ast e)
-| Ast.Lambda (a0 :: args, e) -> 
-  let rec args_to_set = (function (* check duplicated arg names *)
-  | [] -> S.empty
-  | name :: names -> let subset = args_to_set names in
-    (match S.find_opt name subset with 
-    | None -> S.add name subset
-    | Some _ -> raise DuplicatedArgNames)) in
-  let _ = args_to_set (a0 :: args) in
+| Ast.Lambda (a0 :: args, e) ->
+  if List.exists (String.equal a0) args then
+    raise (DuplicatedArgNames a0);
   desugar_ast (Ast.Lambda ([a0], Ast.Lambda (args, e)))
 
 | Ast.Let (body, []) -> desugar_ast body
