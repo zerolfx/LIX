@@ -7,7 +7,7 @@ type dast =
 | Define of Type.var * dast
 | If of dast * dast * dast
 | Custom of Type.constructor * dast list
-| TypeDefinition of Type.constructor * Type.var list * Type.constructor_definition list
+| TypeDefinition of string * Type.var list * Type.constructor_definition list
 | Case of dast * (Type.pattern * dast) list
 [@@deriving show]
 
@@ -39,5 +39,8 @@ let rec desugar_ast (a: Ast.ast): dast = match a with
 
 | Ast.Define (v, e) -> Define (v, desugar_ast e)
 | Ast.If (c, e1, e2) -> If (desugar_ast c, desugar_ast e1, desugar_ast e2)
+| Ast.Custom (c, args) -> Custom (c, List.map desugar_ast args)
+| Ast.TypeDefinition (n, vs, defs) -> TypeDefinition (n, vs, defs)
+| Ast.Case (e, cs) -> Case (desugar_ast e, List.map (fun (p, e) -> (p, desugar_ast e)) cs)
 
 let ast_to_dast (a: Ast.ast): dast = desugar_ast a

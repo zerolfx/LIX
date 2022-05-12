@@ -67,6 +67,7 @@ type 't tast =
 | Application of 't tast * 't tast
 | If of 't tast * 't tast * 't tast
 | Define of string * 't tast
+| TypeDefine of (string * int * 't) list
 [@@deriving show]
 
 
@@ -142,7 +143,15 @@ let rec infer (env : env) (expr : Dast.dast) :
   )
 | Dast.Case _ -> raise @@ Failure "not implemented"
 | Dast.Custom _ -> raise @@ Failure "not implemented"
-| Dast.TypeDefinition _ -> raise @@ Failure "not implemented"
+| Dast.TypeDefinition (name, tns, defs) ->
+  let tvs = List.init (List.length tns) (fun _ -> gen_tvar name) in
+  let defs' = List.mapi (fun i (c_name, args) -> (c_name, i, )) defs in
+  (
+    [],
+    [],
+    CustomT (name, ),
+    TypeDefinition (name, tvs, defs')
+  )
 
 
 let rec solve (cl : type_constraint list) : subst = match cl with

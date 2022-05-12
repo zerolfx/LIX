@@ -10,7 +10,7 @@ type ast =
 | If of ast * ast * ast
 | Let of ast * (Type.var * ast) list
 | Custom of Type.constructor * ast list
-| TypeDefinition of Type.constructor * Type.var list * Type.constructor_definition list
+| TypeDefinition of string * Type.var list * Type.constructor_definition list
 | Case of ast * (Type.pattern * ast) list
 [@@deriving show]
 
