@@ -13,6 +13,8 @@ and token = parse
   [' ' '\t' '\r' '\n'] { token lexbuf }
 | '(' { LPAREN }
 | ')' { RPAREN }
+| '{' { LCURLY }
+| '}' { RCURLY }
 | '-'? ['0'-'9']+ as lxm { INT_LIT(int_of_string lxm) }
 | "true" { BOOL_LIT(true) }
 | "false" { BOOL_LIT(false) }

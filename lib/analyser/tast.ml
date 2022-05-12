@@ -20,6 +20,7 @@ let rec sub_type (s: subst) (t : Type.t) : Type.t = match t with
   | Some t' -> sub_type s t'
   | None -> t)
 | Type.FunT (t1, t2) -> Type.FunT (sub_type s t1, sub_type s t2)
+| Type.CustomT (name, ts) -> Type.CustomT (name, List.map (sub_type s) ts)
 | _ -> t
 
 let sub_constraint (s: subst) c = match c with
@@ -28,17 +29,18 @@ let sub_constraint (s: subst) c = match c with
 
 let sub_union (s1 : subst) (s2 : subst) : subst =
   M.map (sub_type s1) s2 |> M.union (fun _ v1 v2 -> assert (v1 = v2); Some v1) s1
-  
+
 
 
 exception TypeMismatch of Type.t * Type.t
 exception InfiniteType
 
 
-let rec unify (t1 : Type.t) (t2 : Type.t) : subst = 
+let rec unify (t1 : Type.t) (t2 : Type.t) : subst =
   let bind n t =
     if S.mem n (Type.free_type_vars t) then raise InfiniteType
     else M.singleton n t in
+
   match (t1, t2) with
 | _ when t1 = t2 -> M.empty
 | (VarT v, _) -> bind v t2
@@ -48,6 +50,13 @@ let rec unify (t1 : Type.t) (t2 : Type.t) : subst =
   let s1 = unify t11 t21 in
   let s2 = unify (sub_type s1 t12) (sub_type s1 t22) in
   sub_union s1 s2
+
+| (CustomT (n1, ts1), CustomT (n2, ts2)) ->
+  if n1 != n2 || List.length ts1 != List.length ts2 then
+    raise @@ TypeMismatch (t1, t2)
+  else
+    List.map2 unify ts1 ts2 |> List.fold_left sub_union M.empty
+
 | _ -> raise @@ TypeMismatch (t1, t2)
 
 
@@ -65,8 +74,8 @@ type env = S.t
 
 let gen_tvar n = Type.VarT (Common.gen_name n)
 
-let globals = List.map 
-  (fun Builtin_constants.{ internal_name; ty; _ } -> (internal_name, Type.Scheme ([], ty)) ) 
+let globals = List.map
+  (fun Builtin_constants.{ internal_name; ty; _ } -> (internal_name, Type.Scheme ([], ty)) )
   Builtin_constants.builtins  |> List.to_seq |> M.of_seq |> ref
 
 
@@ -81,7 +90,7 @@ let instantiate (sc : Type.scheme) : Type.t = match sc with
 
 
 
-let rec infer (env : env) (expr : Dast.dast) : 
+let rec infer (env : env) (expr : Dast.dast) :
   (type_assumption list * type_constraint list * Type.t * Type.t tast) = match expr with
 | Dast.Primitive ((Type.Int _) as p) -> ([], [], Type.IntT, Primitive p)
 | Dast.Primitive ((Type.Bool _) as p) -> ([], [], Type.BoolT, Primitive p)
@@ -89,7 +98,7 @@ let rec infer (env : env) (expr : Dast.dast) :
   let (sl, cl, t', e') = infer env e in
   (sl, SameType (t, t') :: cl, t', e')
 | Dast.Variable name ->
-  if String.starts_with ~prefix:"__builtin" name 
+  if String.starts_with ~prefix:"__builtin" name
   then ([], [], instantiate @@ M.find name !globals, Variable name)
   else
     let tv = gen_tvar name in
@@ -108,7 +117,7 @@ let rec infer (env : env) (expr : Dast.dast) :
   let ta = gen_tvar name in
   let (sl, cl, te, e') = infer env e in
   (
-    remove_assumption name sl, 
+    remove_assumption name sl,
     cl @ List.map (fun t -> SameType (ta, t)) (find_assumptions name sl),
     FunT (ta, te),
     Lambda (FunT (ta, te), name, e')
@@ -131,8 +140,9 @@ let rec infer (env : env) (expr : Dast.dast) :
     t,
     Define (name, e')
   )
-
-
+| Dast.Case _ -> raise @@ Failure "not implemented"
+| Dast.Custom _ -> raise @@ Failure "not implemented"
+| Dast.TypeDefinition _ -> raise @@ Failure "not implemented"
 
 
 let rec solve (cl : type_constraint list) : subst = match cl with
@@ -140,19 +150,19 @@ let rec solve (cl : type_constraint list) : subst = match cl with
 | (SameType (t1, t2) :: cl) ->
   let su1 = unify t1 t2 in
   let su2 = solve (List.map (sub_constraint su1) cl) in
-  sub_union su1 su2 
+  sub_union su1 su2
 
 
 
 
 
-let rec sub_expr (sub : subst) (bound_type_vars : S.t) (e : Type.t tast) : Type.scheme tast = 
+let rec sub_expr (sub : subst) (bound_type_vars : S.t) (e : Type.t tast) : Type.scheme tast =
   let sub_expr' = sub_expr sub bound_type_vars in
   match e with
 | Primitive p -> Primitive p
 | Variable name -> Variable name
 | Application (e1, e2) -> Application (sub_expr' e1, sub_expr' e2)
-| Lambda (t, name, e) -> 
+| Lambda (t, name, e) ->
   let Scheme (names, _) as sc = generalize (bound_type_vars) (sub_type sub t) in
   let e' = sub_expr sub (S.union bound_type_vars (S.of_list names)) e in
   Lambda (sc, name, e')
@@ -179,9 +189,9 @@ let dast_to_tast (d: Dast.dast) : Type.scheme tast * Type.scheme =
   | Define (name, _) -> globals := M.add name result_scheme !globals
   | _ -> ());
 
-  (* sub 
-    |> M.to_seq 
-    |> List.of_seq 
+  (* sub
+    |> M.to_seq
+    |> List.of_seq
     |> List.map (fun (k, v) -> k ^ " = " ^ Type.show v)
     |> String.concat "\n" |> print_endline; *)
 

@@ -6,6 +6,9 @@ type dast =
 | Variable of Type.var
 | Define of Type.var * dast
 | If of dast * dast * dast
+| Custom of Type.constructor * dast list
+| TypeDefinition of Type.constructor * Type.var list * Type.constructor_definition list
+| Case of dast * (Type.pattern * dast) list
 [@@deriving show]
 
 exception DuplicatedArgNames of Type.var

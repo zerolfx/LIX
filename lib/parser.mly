@@ -2,7 +2,7 @@
     open Syntax
 %}
 
-%token LPAREN RPAREN
+%token LPAREN RPAREN LCURLY RCURLY
 %token <int> INT_LIT
 %token <bool> BOOL_LIT
 %token <string> Symbol
@@ -21,6 +21,7 @@ let program :=
 
 let code :=
 | LPAREN; code_list = list(code); RPAREN; { Form code_list }
+| LCURLY; name = Symbol; code_list = list(code); RCURLY; { CForm (name, code_list) }
 | x = INT_LIT; { IntLit x }
 | x = BOOL_LIT; { BoolLit x }
 | symbol = Symbol; { Symbol symbol }
